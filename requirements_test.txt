@@ -1,0 +1,12 @@
+# Requirements для тестирования
+
+# Testing frameworks
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+
+# AWS mocking
+moto[dynamodb]>=4.2.0
+
+# All production dependencies
+-r requirements_lambda.txt

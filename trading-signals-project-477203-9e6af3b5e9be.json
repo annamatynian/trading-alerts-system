@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "trading-signals-project-477203",
+  "private_key_id": "9e6af3b5e9be9c4108c02cd438aca3127fda3f25",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCzJgdRjkPLMyMt\nzHJo5j7vliKqwF1g0IIgWIh6x0pIkajRIOAsLBvq0hsRICgZOvIEamLlOBK8RONU\nV1DFqJAKBYmuapdM9o+2RADSpfpKt/kRBVjiqSSXAg622DolXDzqekfr37CFXjTq\npZT+iMdMBOJ3wtqrqRqwVInQij/+cirH4eNLa4rroeK1gii8GJoL1rPO3Hr7s4wH\nuM0aCUxL8F+nAmSeCu7gZw19FryGHnB1aHyMaumDI3Y7pvHdn4JFywZAWBMkBAMH\njGFEF0Br/okYv/cXtskBdfcJDvPAJzaMs8Cn1xlUqBc17PSX8UYRZJrL0rPgyA2Q\n1U16bPGFAgMBAAECggEAUxOeDjh6gMc4l5r5LWMkqWdGsUdepjBbP9O+iq1Tad6+\nWii0PFfCJH2FlsYCQlz+8YRCU0jTC2KoxypspxS5oyQZSnxcqJCoaV4UwZq9vJuf\nEUEZDJdig/Kszybro/qntxa4to33pole4beipfzY6wxS1zXRwQw896tkc4RBE+Wn\nvj3CTWnEoYAx+tZwMEZwEQ5eWQ1+sKQwJWEPp5b4R176z6ilqIa1/WNTLOsc6nA0\nL2EUlS/jXuHUsK2jlkMPFKsZqUaTlyMLoVKXBc8dvmjoYYqqSGdlEIQr4eTy0SAr\nl7Yl5SowX+zLkQj7YoPX5f4sdlNWLrpXUtKpEHufmwKBgQDiEI6fN52eW99Cg0lL\nItHWfATnqL+1mIUHvRJjhUbdC4zUQp1vsVBTgycJ/8+ZUUrY1Cld4eZKS4OI2Ctp\n1yJasN+OwBGBd5RFFGKu9zp9kXKyZaiu3efNIMmOExtHhKIBAuB9Q/rlC7wlBTht\n36LsTUWaMkEiN9/nlE438wpzuwKBgQDK3wu60hjVQ61i5QFknrVdVdq5Db2WtT1G\nv+bytWyn6bShgsg7e2BQ9Z9lQxQAGwdh8UzmmyZYv723UIB4LXM7sNEMV/9EGcIw\nJJTGsbTKqGNF9vzImAB1hD/2tIDeTgj8v663psq3h20W8FVFVDz+tMtKeA23ocje\nHMF54lW7vwKBgB57hw+3CxzgXIF2fHqSLmNSg8LNAVS2RTHe78zVmtGRjiLM/Lej\n3CX2qFvzz4Vn7cTBDvbm0AuylQDtzSTPaoV6FhsEkRe5DRgngIsBMTTfWOzvQkia\nCXiidCshLmt9We7y+VxKv1kFNRB03MAMCMb+QGVjY17+08VBPS7UKdOjAoGBALL5\nTWbWnRPgLeG2OKFlJomeCWUCi0Sexd1ZxUxP4/jKxBFMyIs5UAJ8fs+d+tIRBlVQ\nxNAZBh57ocpMWdor9qItXm+uXkPdGaTRUPNtqRq0rUf3GpF5D8adErT6D0qPu3wH\nOwNIQUTiU8pN4lxUca8fHs2m1isvrn7NDZ8SnyIPAoGBALUCK26hJaa6/BSRSLEX\nj3WOywWK9H0oxkwqnN7pxsDMSmqpouF2Y+EOs2cLi/USG2Ms9hxr2j4UFaXHzKfe\nMZOEZk26ac2IScS0u2+2PfNfVhiPLwxpY6bXtXN7l4gq3SsOcr4KoaKRpaAdrVox\nKWT33JaerAO3iIl+oJTZVerE\n-----END PRIVATE KEY-----\n",
+  "client_email": "lambda-sheets-reader@trading-signals-project-477203.iam.gserviceaccount.com",
+  "client_id": "101422213331579672180",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/lambda-sheets-reader%40trading-signals-project-477203.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

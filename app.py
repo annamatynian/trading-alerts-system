@@ -131,6 +131,10 @@ async def create_signal_async(
 ) -> Tuple[str, pd.DataFrame]:
     """Создание нового сигнала"""
     try:
+        # Валидация: User ID обязателен
+        if not user_id or user_id.strip() == "":
+            return "❌ User ID is required! Please enter your username.", get_signals_table()
+        
         # Создаем SignalTarget
         signal = SignalTarget(
             name=name,
@@ -195,14 +199,18 @@ def create_signal(
     )
 
 
-def get_signals_table() -> pd.DataFrame:
-    """Получение всех сигналов из DynamoDB"""
+def get_signals_table(user_id: str = "") -> pd.DataFrame:
+    """Получение сигналов из DynamoDB с опциональным фильтром по user_id"""
     try:
         signals = asyncio.run(storage.get_all_signals())
         
+        # Фильтруем по user_id если указан
+        if user_id and user_id.strip():
+            signals = [s for s in signals if s.user_id and s.user_id.strip() == user_id.strip()]
+        
         if not signals:
             return pd.DataFrame(columns=[
-                'ID', 'Name', 'Exchange', 'Symbol', 'Condition', 
+                'ID', 'Name', 'User ID', 'Exchange', 'Symbol', 'Condition', 
                 'Target Price', 'Status', 'Created', 'Triggered Count'
             ])
         
@@ -212,6 +220,7 @@ def get_signals_table() -> pd.DataFrame:
             data.append({
                 'ID': signal.id[:8] + '...',
                 'Name': signal.name,
+                'User ID': signal.user_id or 'N/A',
                 'Exchange': signal.exchange.value if signal.exchange else 'any',
                 'Symbol': signal.symbol,
                 'Condition': signal.condition.value,
@@ -423,9 +432,10 @@ def create_interface():
                     )
                     
                     signal_user_id = gr.Textbox(
-                        label="User ID (Optional)",
-                        placeholder="Pushover user key",
-                        info="For notifications"
+                        label="User ID (Required)",
+                        placeholder="your_username (e.g., anna, john)",
+                        info="Your unique identifier for notifications",
+                        value=""
                     )
             
             signal_notes = gr.Textbox(
@@ -465,14 +475,31 @@ def create_interface():
         with gr.Tab("📊 View Signals"):
             gr.Markdown("### All Trading Signals in DynamoDB")
             
-            refresh_btn = gr.Button("🔄 Refresh", variant="secondary")
+            # Фильтр по User ID
+            with gr.Row():
+                filter_user_id = gr.Textbox(
+                    label="Filter by User ID",
+                    placeholder="Leave empty to see all signals, or enter username (e.g., anna)",
+                    value=""
+                )
+                with gr.Column():
+                    filter_btn = gr.Button("🔍 Filter", variant="primary")
+                    refresh_btn = gr.Button("🔄 Refresh All", variant="secondary")
+            
             signals_table = gr.Dataframe(
                 label="Trading Signals",
                 value=get_signals_table()
             )
             
+            # Привязка кнопок
+            filter_btn.click(
+                fn=lambda user_id: get_signals_table(user_id=user_id),
+                inputs=filter_user_id,
+                outputs=signals_table
+            )
+            
             refresh_btn.click(
-                fn=get_signals_table,
+                fn=lambda: get_signals_table(user_id=""),
                 outputs=signals_table
             )
         
