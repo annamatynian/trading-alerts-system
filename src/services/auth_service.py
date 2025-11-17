@@ -8,9 +8,18 @@ import secrets
 import hashlib
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta
+from collections import defaultdict
+import time
 
 import jwt
 from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
+
+try:
+    import bcrypt
+    BCRYPT_AVAILABLE = True
+except ImportError:
+    BCRYPT_AVAILABLE = False
+    logger.warning("⚠️  bcrypt not available, falling back to SHA256")
 
 from storage.session_storage import SessionStorage
 
@@ -25,7 +34,8 @@ class AuthService:
     - JWT токены для клиента (в cookies)
     - Сессии в DynamoDB для серверной валидации
     - Автоматическое истечение сессий (TTL)
-    - Безопасное хеширование паролей (опционально)
+    - bcrypt хеширование паролей (production-ready)
+    - Rate limiting (защита от brute force)
     """
 
     def __init__(self, session_storage: SessionStorage = None):
@@ -41,7 +51,16 @@ class AuthService:
         # Session storage
         self.session_storage = session_storage or SessionStorage()
 
-        logger.info(f"AuthService initialized (JWT expiration: {self.jwt_expiration_days} days)")
+        # Rate limiting для защиты от brute force
+        self.login_attempts = defaultdict(list)  # {username: [timestamp1, timestamp2, ...]}
+        self.max_login_attempts = int(os.getenv('MAX_LOGIN_ATTEMPTS', '5'))
+        self.lockout_duration = int(os.getenv('LOCKOUT_DURATION', '300'))  # 5 минут
+
+        # bcrypt параметры
+        self.bcrypt_rounds = int(os.getenv('BCRYPT_ROUNDS', '12'))  # Стоимость хеширования
+
+        hash_method = "bcrypt" if BCRYPT_AVAILABLE else "SHA256"
+        logger.info(f"AuthService initialized (JWT: {self.jwt_expiration_days}d, Hash: {hash_method}, Rate limit: {self.max_login_attempts} attempts)")
 
     def _generate_secret(self) -> str:
         """
@@ -58,11 +77,71 @@ class AuthService:
 
     def _hash_password(self, password: str) -> str:
         """
-        Простое хеширование пароля (для демо)
+        Хеширование пароля (bcrypt если доступен, иначе SHA256)
 
-        В production использовать bcrypt или argon2!
+        Args:
+            password: Пароль в открытом виде
+
+        Returns:
+            Хеш пароля (строка)
         """
-        return hashlib.sha256(password.encode()).hexdigest()
+        if BCRYPT_AVAILABLE:
+            # bcrypt возвращает bytes, конвертируем в строку
+            salt = bcrypt.gensalt(rounds=self.bcrypt_rounds)
+            hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+            return hashed.decode('utf-8')
+        else:
+            # Fallback на SHA256 (только для dev!)
+            return f"sha256:{hashlib.sha256(password.encode()).hexdigest()}"
+
+    def _verify_password(self, password: str, password_hash: str) -> bool:
+        """
+        Проверка пароля против хеша
+
+        Args:
+            password: Пароль в открытом виде
+            password_hash: Хеш из базы данных
+
+        Returns:
+            True если пароль совпадает
+        """
+        if BCRYPT_AVAILABLE and not password_hash.startswith('sha256:'):
+            # bcrypt verification
+            return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+        else:
+            # SHA256 fallback
+            expected_hash = f"sha256:{hashlib.sha256(password.encode()).hexdigest()}"
+            return password_hash == expected_hash
+
+    def _check_rate_limit(self, username: str) -> Tuple[bool, str]:
+        """
+        Проверяет rate limit для пользователя
+
+        Args:
+            username: Имя пользователя
+
+        Returns:
+            (allowed, message)
+        """
+        now = time.time()
+        cutoff = now - self.lockout_duration
+
+        # Очищаем старые попытки
+        self.login_attempts[username] = [
+            timestamp for timestamp in self.login_attempts[username]
+            if timestamp > cutoff
+        ]
+
+        # Проверяем количество попыток
+        if len(self.login_attempts[username]) >= self.max_login_attempts:
+            remaining = int(self.login_attempts[username][0] + self.lockout_duration - now)
+            return False, f"Too many login attempts. Try again in {remaining} seconds."
+
+        return True, ""
+
+    def _record_login_attempt(self, username: str):
+        """Записывает попытку входа"""
+        self.login_attempts[username].append(time.time())
 
     async def register_user(self, username: str, password: str) -> Tuple[bool, str]:
         """
@@ -109,18 +188,25 @@ class AuthService:
             logger.error(f"❌ Registration failed: {e}")
             return False, f"Registration error: {e}"
 
-    async def login(self, username: str, password: str) -> Tuple[bool, Optional[str], str]:
+    async def login(self, username: str, password: str, ip_address: str = None) -> Tuple[bool, Optional[str], str]:
         """
         Аутентификация пользователя и создание JWT токена
 
         Args:
             username: Имя пользователя
             password: Пароль
+            ip_address: IP адрес клиента (для rate limiting)
 
         Returns:
             (success, jwt_token, message)
         """
         try:
+            # 1. Проверяем rate limit
+            allowed, rate_msg = self._check_rate_limit(username)
+            if not allowed:
+                logger.warning(f"🚫 Rate limit exceeded: {username}")
+                return False, None, rate_msg
+
             # Получаем данные пользователя
             from storage.dynamodb_storage import DynamoDBStorage
 
@@ -128,32 +214,43 @@ class AuthService:
             user_data = await storage.get_user_data(username)
 
             if not user_data:
+                # Записываем неудачную попытку (защита от подбора username)
+                self._record_login_attempt(username)
                 logger.warning(f"❌ Login failed: user not found ({username})")
                 return False, None, "Invalid username or password"
 
-            # Проверяем пароль
-            password_hash = self._hash_password(password)
-            if user_data.get('password_hash') != password_hash:
+            # 2. Проверяем пароль используя новый метод
+            password_hash = user_data.get('password_hash')
+            if not self._verify_password(password, password_hash):
+                # Записываем неудачную попытку
+                self._record_login_attempt(username)
                 logger.warning(f"❌ Login failed: wrong password ({username})")
                 return False, None, "Invalid username or password"
 
-            # Проверяем активность аккаунта
+            # 3. Проверяем активность аккаунта
             if not user_data.get('active', True):
                 return False, None, "Account is disabled"
 
-            # Создаем JWT токен
+            # 4. Создаем JWT токен
             jwt_token = self._create_jwt_token(username)
 
             # Извлекаем session_id из токена (jti claim)
             payload = jwt.decode(jwt_token, self.jwt_secret, algorithms=[self.jwt_algorithm])
             session_id = payload['jti']
 
-            # Сохраняем сессию в DynamoDB
+            # 5. Сохраняем сессию в DynamoDB
             await self.session_storage.save_session(
                 session_id=session_id,
                 user_id=username,
-                metadata={'login_time': datetime.now().isoformat()}
+                metadata={
+                    'login_time': datetime.now().isoformat(),
+                    'ip_address': ip_address or 'unknown'
+                }
             )
+
+            # Очищаем счетчик попыток после успешного входа
+            if username in self.login_attempts:
+                del self.login_attempts[username]
 
             logger.info(f"✅ User logged in: {username}")
             return True, jwt_token, "Login successful"
