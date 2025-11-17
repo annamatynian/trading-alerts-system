@@ -172,18 +172,23 @@ async def login_user_async(username: str, password: str) -> Tuple[str, str, bool
         if not username or not password:
             return "❌ Username and password are required", "", False
 
+        # auth_service.login() raises ValueError on failure
         result = await auth_service.login(username, password)
 
-        if result['success']:
-            token = result['access_token']
-            logger.info(f"✅ User '{username}' logged in successfully")
-            return f"✅ Welcome, {username}!", username, True
-        else:
-            reason = result.get('message', 'Invalid credentials')
-            return f"❌ Login failed: {reason}", "", False
+        # Если дошли сюда - логин успешен
+        token = result['access_token']
+        session_id = result['session_id']
+        logger.info(f"✅ User '{username}' logged in successfully (session: {session_id[:8]}...)")
+
+        return f"✅ Welcome, {username}!", username, True
+
+    except ValueError as e:
+        # Invalid credentials or rate limit
+        logger.warning(f"❌ Login failed for '{username}': {e}")
+        return f"❌ Login failed: {str(e)}", "", False
 
     except Exception as e:
-        logger.error(f"❌ Login error: {e}")
+        logger.error(f"❌ Unexpected login error: {e}")
         return f"❌ Error: {str(e)}", "", False
 
 
