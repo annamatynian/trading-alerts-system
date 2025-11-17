@@ -224,13 +224,13 @@ async def create_signal_async(
     target_price: float,
     notes: Optional[str],
     request: gr.Request
-) -> Tuple[str, pd.DataFrame]:
+) -> Tuple[str, pd.DataFrame, str, str, str, float, str]:
     """Создание нового сигнала (только для авторизованных)"""
     try:
         # Проверяем авторизацию
         username = get_current_username(request)
         if not username:
-            return "❌ Please login first!", pd.DataFrame()
+            return "❌ Please login first!", pd.DataFrame(), name, symbol, notes, target_price, ""
 
         # Проверяем на дублирование: получаем все сигналы пользователя
         all_user_signals = await storage.get_all_signals()
@@ -247,7 +247,12 @@ async def create_signal_async(
                 existing.condition == signal_condition and
                 abs(existing.target_price - target_price) < 0.01):  # Сравниваем цены с точностью
                 logger.warning(f"Duplicate signal detected for user {username}: {symbol_upper} {condition} {target_price}")
-                return f"⚠️ Signal already exists: {existing.name} ({symbol_upper} {condition} ${target_price})", await get_user_signals(request)
+                # Дубликат - НЕ очищаем форму, оставляем значения как есть
+                return (
+                    f"⚠️ Signal already exists: {existing.name} ({symbol_upper} {condition} ${target_price})",
+                    await get_user_signals(request),
+                    name, symbol, notes, target_price, ""
+                )
 
         # Создаем SignalTarget
         signal = SignalTarget(
@@ -268,13 +273,30 @@ async def create_signal_async(
 
         if success:
             logger.info(f"✅ Signal created for {username}: {signal.name}")
-            return f"✅ Signal created: {signal.name}", await get_user_signals(request)
+            # Успех - очищаем форму
+            return (
+                f"✅ Signal created: {signal.name}",
+                await get_user_signals(request),
+                "",  # Очистить Signal Name
+                "",  # Очистить Symbol
+                "",  # Очистить Notes
+                50000.0,  # Вернуть дефолтную цену
+                "✅"  # Флаг успеха для UI
+            )
         else:
-            return "❌ Failed to save signal", await get_user_signals(request)
+            return (
+                "❌ Failed to save signal",
+                await get_user_signals(request),
+                name, symbol, notes, target_price, ""
+            )
 
     except Exception as e:
         logger.error(f"Error creating signal: {e}")
-        return f"❌ Error: {e}", await get_user_signals(request)
+        return (
+            f"❌ Error: {e}",
+            await get_user_signals(request),
+            name, symbol, notes, target_price, ""
+        )
 
 
 def create_signal(name: str, exchange: str, symbol: str, condition: str,
@@ -459,12 +481,14 @@ def create_interface():
                 create_btn = gr.Button("Create Signal", variant="primary")
                 create_output = gr.Textbox(label="Result", lines=2)
                 create_table = gr.Dataframe(label="Your Signals")
+                create_success_flag = gr.Textbox(visible=False)  # Скрытый флаг успеха
 
                 create_btn.click(
                     fn=create_signal,
                     inputs=[signal_name, signal_exchange, signal_symbol, signal_condition,
                            signal_target_price, signal_notes],
-                    outputs=[create_output, create_table]
+                    outputs=[create_output, create_table, signal_name, signal_symbol,
+                            signal_notes, signal_target_price, create_success_flag]
                 )
 
             # ============================================================================
