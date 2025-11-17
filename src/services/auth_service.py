@@ -143,7 +143,14 @@ class AuthService:
                 expires_at=datetime.now() + self.session_duration
             )
 
-            # Store session
+            # Store session in DynamoDB
+            await self.storage.save_session(
+                session_id=session.session_id,
+                username=user.username,
+                expires_at=session.expires_at
+            )
+
+            # Also keep in memory for quick access
             self.sessions[session.session_id] = session
 
             # Update last login time
@@ -157,7 +164,7 @@ class AuthService:
             logger.error(f"Error during login: {e}")
             return None
 
-    def logout(self, session_id: str) -> bool:
+    async def logout(self, session_id: str) -> bool:
         """
         Logout user and destroy session
 
@@ -167,16 +174,24 @@ class AuthService:
         Returns:
             True if logout successful
         """
-        if session_id in self.sessions:
-            username = self.sessions[session_id].username
-            del self.sessions[session_id]
-            logger.info(f"User logged out: {username}")
-            return True
-        return False
+        try:
+            # Delete from DynamoDB
+            await self.storage.delete_session(session_id)
 
-    def get_session(self, session_id: str) -> Optional[Session]:
+            # Delete from memory cache
+            if session_id in self.sessions:
+                username = self.sessions[session_id].username
+                del self.sessions[session_id]
+                logger.info(f"User logged out: {username}")
+
+            return True
+        except Exception as e:
+            logger.error(f"Error during logout: {e}")
+            return False
+
+    async def get_session(self, session_id: str) -> Optional[Session]:
         """
-        Get session by ID
+        Get session by ID (checks memory cache first, then DynamoDB)
 
         Args:
             session_id: Session ID
@@ -184,20 +199,42 @@ class AuthService:
         Returns:
             Session object if valid, None otherwise
         """
+        # Check memory cache first
         session = self.sessions.get(session_id)
 
-        if session is None:
-            return None
+        if session:
+            # Check if expired
+            if session.is_expired():
+                del self.sessions[session_id]
+                await self.storage.delete_session(session_id)
+                logger.info(f"Session expired: {session.username}")
+                return None
+            return session
 
-        # Check if expired
-        if session.is_expired():
-            del self.sessions[session_id]
-            logger.info(f"Session expired: {session.username}")
-            return None
+        # Not in cache, check DynamoDB
+        try:
+            session_data = await self.storage.get_session(session_id)
 
-        return session
+            if session_data:
+                # Restore session from DynamoDB
+                session = Session(
+                    session_id=session_data['session_id'],
+                    username=session_data['username'],
+                    created_at=session_data['created_at'],
+                    expires_at=session_data['expires_at']
+                )
 
-    def validate_session(self, session_id: str) -> Optional[str]:
+                # Cache it in memory
+                self.sessions[session_id] = session
+                logger.debug(f"Session restored from DynamoDB: {session.username}")
+                return session
+
+        except Exception as e:
+            logger.error(f"Error getting session: {e}")
+
+        return None
+
+    async def validate_session(self, session_id: str) -> Optional[str]:
         """
         Validate session and return username
 
@@ -207,7 +244,7 @@ class AuthService:
         Returns:
             Username if session is valid, None otherwise
         """
-        session = self.get_session(session_id)
+        session = await self.get_session(session_id)
         return session.username if session else None
 
     async def change_password(self, username: str, old_password: str, new_password: str) -> bool:

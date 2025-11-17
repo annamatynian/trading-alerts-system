@@ -414,3 +414,106 @@ class DynamoDBStorage(StorageBase):
         except ClientError as e:
             logger.error(f"Failed to save user {user.username}: {e}")
             return False
+
+    # ============================================================================
+    # SESSION MANAGEMENT METHODS
+    # ============================================================================
+
+    async def save_session(self, session_id: str, username: str, expires_at: datetime) -> bool:
+        """
+        Save user session to DynamoDB
+
+        Args:
+            session_id: Unique session identifier
+            username: Username for this session
+            expires_at: Session expiration time
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            item = {
+                'PK': f"session#{session_id}",
+                'SK': 'metadata',
+                'entity_type': 'session',
+                'session_id': session_id,
+                'username': username,
+                'created_at': datetime.now().isoformat(),
+                'expires_at': expires_at.isoformat(),
+            }
+
+            await asyncio.to_thread(self.table.put_item, Item=item)
+            logger.debug(f"✅ Saved session for user: {username}")
+            return True
+
+        except ClientError as e:
+            logger.error(f"Failed to save session for {username}: {e}")
+            return False
+
+    async def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get session from DynamoDB
+
+        Args:
+            session_id: Session ID to lookup
+
+        Returns:
+            Session dict if found and not expired, None otherwise
+        """
+        try:
+            response = await asyncio.to_thread(
+                self.table.get_item,
+                Key={
+                    'PK': f"session#{session_id}",
+                    'SK': 'metadata'
+                }
+            )
+
+            item = response.get('Item')
+            if not item:
+                logger.debug(f"Session not found: {session_id[:8]}...")
+                return None
+
+            # Check if expired
+            expires_at = datetime.fromisoformat(item['expires_at'])
+            if datetime.now() > expires_at:
+                logger.debug(f"Session expired: {session_id[:8]}...")
+                # Delete expired session
+                await self.delete_session(session_id)
+                return None
+
+            return {
+                'session_id': item['session_id'],
+                'username': item['username'],
+                'created_at': datetime.fromisoformat(item['created_at']),
+                'expires_at': expires_at,
+            }
+
+        except ClientError as e:
+            logger.error(f"Failed to get session {session_id[:8]}...: {e}")
+            return None
+
+    async def delete_session(self, session_id: str) -> bool:
+        """
+        Delete session from DynamoDB
+
+        Args:
+            session_id: Session ID to delete
+
+        Returns:
+            True if successful
+        """
+        try:
+            await asyncio.to_thread(
+                self.table.delete_item,
+                Key={
+                    'PK': f"session#{session_id}",
+                    'SK': 'metadata'
+                }
+            )
+            logger.debug(f"Deleted session: {session_id[:8]}...")
+            return True
+
+        except ClientError as e:
+            logger.error(f"Failed to delete session {session_id[:8]}...: {e}")
+            return False

@@ -194,7 +194,7 @@ def logout_user(request: gr.Request) -> Tuple[str, Dict]:
         session_hash = str(request.session_hash)
         if session_hash in current_sessions:
             session_id = current_sessions[session_hash]
-            auth_service.logout(session_id)
+            asyncio.run(auth_service.logout(session_id))
             del current_sessions[session_hash]
             return "✅ Logged out successfully!", gr.update(visible=True)
         return "❌ Not logged in", gr.update(visible=True)
@@ -209,7 +209,7 @@ def get_current_username(request: gr.Request) -> Optional[str]:
         return None
 
     session_id = current_sessions[session_hash]
-    return auth_service.validate_session(session_id)
+    return asyncio.run(auth_service.validate_session(session_id))
 
 
 # ============================================================================
