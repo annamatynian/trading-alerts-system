@@ -141,8 +141,8 @@ async def register_user_async(username: str, password: str) -> str:
         if not username or not password:
             return "❌ Username and password are required"
 
-        if len(password) < 6:
-            return "❌ Password must be at least 6 characters"
+        if len(password) < 8:
+            return "❌ Password must be at least 8 characters"
 
         user = await auth_service.register_user(username, password)
 
@@ -498,7 +498,7 @@ def create_interface():
             with gr.Column(scale=1):
                 gr.Markdown("### 📝 Register")
                 register_username = gr.Textbox(label="Username", placeholder="Choose a username")
-                register_password = gr.Textbox(label="Password", type="password", placeholder="Choose a password (min 6 chars)")
+                register_password = gr.Textbox(label="Password", type="password", placeholder="Choose a password (min 8 chars)")
                 register_btn = gr.Button("Register", variant="secondary")
                 register_output = gr.Textbox(label="Registration Status", interactive=False)
 
