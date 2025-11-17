@@ -232,12 +232,29 @@ async def create_signal_async(
         if not username:
             return "❌ Please login first!", pd.DataFrame()
 
+        # Проверяем на дублирование: получаем все сигналы пользователя
+        all_user_signals = await storage.get_all_signals()
+        user_signals = [s for s in all_user_signals if s.user_id == username and s.active]
+
+        # Проверяем существует ли уже такой же активный сигнал
+        exchange_type = ExchangeType(exchange.lower())
+        signal_condition = SignalCondition(condition.lower())
+        symbol_upper = symbol.upper()
+
+        for existing in user_signals:
+            if (existing.exchange == exchange_type and
+                existing.symbol == symbol_upper and
+                existing.condition == signal_condition and
+                abs(existing.target_price - target_price) < 0.01):  # Сравниваем цены с точностью
+                logger.warning(f"Duplicate signal detected for user {username}: {symbol_upper} {condition} {target_price}")
+                return f"⚠️ Signal already exists: {existing.name} ({symbol_upper} {condition} ${target_price})", await get_user_signals(request)
+
         # Создаем SignalTarget
         signal = SignalTarget(
             name=name,
-            exchange=ExchangeType(exchange.lower()),
-            symbol=symbol.upper(),
-            condition=SignalCondition(condition.lower()),
+            exchange=exchange_type,
+            symbol=symbol_upper,
+            condition=signal_condition,
             target_price=target_price,
             user_id=username,  # Используем username из сессии
             notes=notes
@@ -250,6 +267,7 @@ async def create_signal_async(
         success = await storage.save_signal(signal)
 
         if success:
+            logger.info(f"✅ Signal created for {username}: {signal.name}")
             return f"✅ Signal created: {signal.name}", await get_user_signals(request)
         else:
             return "❌ Failed to save signal", await get_user_signals(request)
