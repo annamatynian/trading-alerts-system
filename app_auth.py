@@ -9,6 +9,10 @@ import logging
 from datetime import datetime
 from typing import List, Tuple, Optional, Dict
 import pandas as pd
+from dotenv import load_dotenv
+
+# Загружаем .env файл ПЕРВЫМ ДЕЛОМ!
+load_dotenv()
 
 # Добавляем src в path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
