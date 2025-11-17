@@ -86,11 +86,10 @@ print("3. Testing SessionStorage...")
 try:
     from storage.session_storage import SessionStorage
 
+    # SessionStorage uses boto3 which reads from environment automatically
     session_storage = SessionStorage(
         table_name=table_name,
-        region=region,
-        aws_access_key_id=aws_key,
-        aws_secret_access_key=aws_secret
+        region=region
     )
 
     print("   ✅ SessionStorage initialized successfully!")
