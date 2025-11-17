@@ -136,11 +136,14 @@ def check_syntax():
             continue
 
         try:
-            with open(filepath, 'r') as f:
+            with open(filepath, 'r', encoding='utf-8') as f:
                 compile(f.read(), filepath, 'exec')
             print(f"  {Colors.GREEN}✓{Colors.END} {filepath}")
         except SyntaxError as e:
             print(f"  {Colors.RED}✗{Colors.END} {filepath} - Line {e.lineno}: {e.msg}")
+            all_ok = False
+        except UnicodeDecodeError as e:
+            print(f"  {Colors.RED}✗{Colors.END} {filepath} - Encoding error: {e}")
             all_ok = False
 
     return all_ok
