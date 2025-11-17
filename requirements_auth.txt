@@ -1,0 +1,10 @@
+# Additional requirements for authentication system
+# Add these to your main requirements.txt or install separately
+
+# Email validation
+email-validator>=2.0.0
+
+# For testing
+moto[dynamodb]>=4.0.0
+pytest>=7.0.0
+pytest-asyncio>=0.21.0

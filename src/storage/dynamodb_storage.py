@@ -297,3 +297,177 @@ class DynamoDBStorage(StorageBase):
     async def get_all_signals(self) -> List[SignalTarget]:
         """Alias for load_signals() for compatibility"""
         return await self.load_signals()
+
+    # ============================================================================
+    # USER AUTHENTICATION METHODS
+    # ============================================================================
+
+    def _user_to_item(self, user) -> Dict[str, Any]:
+        """
+        Конвертирует User в DynamoDB item
+
+        Args:
+            user: User object
+
+        Returns:
+            DynamoDB item dictionary
+        """
+        item = {
+            'PK': f"user#{user.username}",
+            'SK': 'profile',
+            'entity_type': 'user',
+            'username': user.username,
+            'password_hash': user.password_hash,
+            'created_at': user.created_at.isoformat(),
+            'is_active': user.is_active,
+        }
+
+        # Optional fields
+        if user.email:
+            item['email'] = user.email
+        if user.last_login:
+            item['last_login'] = user.last_login.isoformat()
+        if user.pushover_key:
+            item['pushover_key'] = user.pushover_key
+        if user.telegram_chat_id:
+            item['telegram_chat_id'] = user.telegram_chat_id
+        if user.full_name:
+            item['full_name'] = user.full_name
+        if user.timezone:
+            item['timezone'] = user.timezone
+
+        return item
+
+    def _item_to_user(self, item: Dict[str, Any]):
+        """
+        Конвертирует DynamoDB item в User
+
+        Args:
+            item: DynamoDB item
+
+        Returns:
+            User object
+        """
+        from models.user import User
+
+        return User(
+            username=item['username'],
+            email=item.get('email'),
+            password_hash=item['password_hash'],
+            created_at=datetime.fromisoformat(item['created_at']),
+            last_login=datetime.fromisoformat(item['last_login']) if item.get('last_login') else None,
+            is_active=item.get('is_active', True),
+            pushover_key=item.get('pushover_key'),
+            telegram_chat_id=item.get('telegram_chat_id'),
+            full_name=item.get('full_name'),
+            timezone=item.get('timezone')
+        )
+
+    async def save_user(self, user) -> bool:
+        """
+        Сохраняет или обновляет пользователя в DynamoDB
+
+        Args:
+            user: User object
+
+        Returns:
+            True если успешно
+        """
+        try:
+            item = self._user_to_item(user)
+            await asyncio.to_thread(self.table.put_item, Item=item)
+            logger.info(f"✅ Saved user: {user.username}")
+            return True
+
+        except ClientError as e:
+            logger.error(f"Failed to save user {user.username}: {e}")
+            return False
+
+    async def get_user(self, username: str):
+        """
+        Получает пользователя по username
+
+        Args:
+            username: Username
+
+        Returns:
+            User object или None если не найден
+        """
+        try:
+            response = await asyncio.to_thread(
+                self.table.get_item,
+                Key={
+                    'PK': f"user#{username.lower()}",
+                    'SK': 'profile'
+                }
+            )
+
+            item = response.get('Item')
+            if not item:
+                logger.debug(f"User not found: {username}")
+                return None
+
+            return self._item_to_user(item)
+
+        except ClientError as e:
+            logger.error(f"Failed to get user {username}: {e}")
+            return None
+
+    async def delete_user(self, username: str) -> bool:
+        """
+        Удаляет пользователя
+
+        Args:
+            username: Username
+
+        Returns:
+            True если успешно
+        """
+        try:
+            await asyncio.to_thread(
+                self.table.delete_item,
+                Key={
+                    'PK': f"user#{username.lower()}",
+                    'SK': 'profile'
+                }
+            )
+            logger.info(f"Deleted user: {username}")
+            return True
+
+        except ClientError as e:
+            logger.error(f"Failed to delete user {username}: {e}")
+            return False
+
+    async def get_all_users(self) -> List:
+        """
+        Получает всех пользователей
+
+        Returns:
+            Список User объектов
+        """
+        try:
+            # Query with GSI or Scan
+            try:
+                response = await asyncio.to_thread(
+                    self.table.query,
+                    IndexName='entity_type-index',
+                    KeyConditionExpression='entity_type = :type',
+                    ExpressionAttributeValues={':type': 'user'}
+                )
+            except ClientError:
+                # Fallback to Scan
+                response = await asyncio.to_thread(
+                    self.table.scan,
+                    FilterExpression='entity_type = :type',
+                    ExpressionAttributeValues={':type': 'user'}
+                )
+
+            items = response.get('Items', [])
+            users = [self._item_to_user(item) for item in items]
+
+            logger.info(f"Loaded {len(users)} users from DynamoDB")
+            return users
+
+        except ClientError as e:
+            logger.error(f"Failed to load users: {e}")
+            return []
