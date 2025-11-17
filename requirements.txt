@@ -39,3 +39,7 @@ pandas>=2.0.0
 
 # Notifications
 requests
+
+# Authentication & Sessions
+PyJWT>=2.8.0
+python-multipart>=0.0.6

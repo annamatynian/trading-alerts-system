@@ -543,256 +543,185 @@ def create_interface():
                 # TAB 1: CREATE SIGNAL
                 # ============================================================================
                 with gr.Tab("📝 Create Signal"):
-                    gr.Markdown("### Create New Trading Signal")
+            gr.Markdown("### Create New Trading Signal")
             
-                with gr.Row():
-                    with gr.Column():
-                        signal_name = gr.Textbox(
-                            label="Signal Name",
-                            placeholder="My BTC Alert",
-                            info="Human-readable name for this signal"
-                        )
-                    
-                        signal_exchange = gr.Dropdown(
-                            choices=["binance", "bybit", "coinbase"],
-                            label="Exchange",
-                            value="bybit",
-                            info="Target exchange"
-                        )
-                    
-                        signal_symbol = gr.Textbox(
-                            label="Symbol",
-                            placeholder="BTCUSDT",
-                            info="Trading pair (e.g., BTCUSDT, ETHUSDT)"
-                        )
-                
-                    with gr.Column():
-                        signal_condition = gr.Dropdown(
-                            choices=["above", "below"],
-                            label="Condition",
-                            value="above",
-                            info="Trigger when price goes above/below target"
-                        )
-                    
-                        signal_target_price = gr.Number(
-                            label="Target Price",
-                            value=50000.0,
-                            info="Price threshold"
-                        )
-                    
-                        signal_user_id = gr.Textbox(
-                            label="User ID (Required)",
-                            placeholder="your_username (e.g., anna, john)",
-                            info="Your unique identifier for notifications",
-                            value=""
-                        )
-            
-                signal_notes = gr.Textbox(
-                    label="Notes (Optional)",
-                    placeholder="Additional information...",
-                    lines=2
-                )
-            
-                save_to_sheets_check = gr.Checkbox(
-                    label="Also save to Google Sheets",
-                    value=True,
-                    info="Sync to Google Sheets for manual editing"
-                )
-            
-                create_btn = gr.Button("Create Signal", variant="primary")
-                create_output = gr.Textbox(label="Result", lines=2)
-                create_table = gr.Dataframe(label="Current Signals")
-            
-                create_btn.click(
-                    fn=create_signal,
-                    inputs=[
-                        signal_name,
-                        signal_exchange,
-                        signal_symbol,
-                        signal_condition,
-                        signal_target_price,
-                        signal_user_id,
-                        signal_notes,
-                        save_to_sheets_check
-                    ],
-                    outputs=[create_output, create_table]
-                )
-        
-            # ============================================================================
-            # TAB 2: VIEW SIGNALS
-            # ============================================================================
-            with gr.Tab("📊 View Signals"):
-                gr.Markdown("### All Trading Signals in DynamoDB")
-            
-                # Фильтр по User ID
-                with gr.Row():
-                    filter_user_id = gr.Textbox(
-                        label="Filter by User ID",
-                        placeholder="Leave empty to see all signals, or enter username (e.g., anna)",
-                        value=""
+            with gr.Row():
+                with gr.Column():
+                    signal_name = gr.Textbox(
+                        label="Signal Name",
+                        placeholder="My BTC Alert",
+                        info="Human-readable name for this signal"
                     )
-                    with gr.Column():
-                        filter_btn = gr.Button("🔍 Filter", variant="primary")
-                        refresh_btn = gr.Button("🔄 Refresh All", variant="secondary")
-            
-                signals_table = gr.Dataframe(
-                    label="Trading Signals",
-                    value=get_signals_table()
-                )
-            
-                # Привязка кнопок
-                filter_btn.click(
-                    fn=lambda user_id: get_signals_table(user_id=user_id),
-                    inputs=filter_user_id,
-                    outputs=signals_table
-                )
-            
-                refresh_btn.click(
-                    fn=lambda: get_signals_table(user_id=""),
-                    outputs=signals_table
-                )
-        
-            # ============================================================================
-            # TAB 3: DELETE SIGNAL
-            # ============================================================================
-            with gr.Tab("🗑️ Delete Signal"):
-                gr.Markdown("### Delete Trading Signal")
-            
-                delete_id = gr.Textbox(
-                    label="Signal ID",
-                    placeholder="Enter short ID (e.g., a1b2c3d4...)",
-                    info="Get ID from View Signals tab"
-                )
-            
-                delete_btn = gr.Button("Delete Signal", variant="stop")
-                delete_output = gr.Textbox(label="Result", lines=2)
-                delete_table = gr.Dataframe(label="Current Signals")
-            
-                delete_btn.click(
-                    fn=delete_signal,
-                    inputs=delete_id,
-                    outputs=[delete_output, delete_table]
-                )
-        
-            # ============================================================================
-            # TAB 4: CHECK PRICE
-            # ============================================================================
-            with gr.Tab("💰 Check Price"):
-                gr.Markdown("### Get Current Price from Exchange")
-            
-                with gr.Row():
-                    price_exchange = gr.Dropdown(
+                    
+                    signal_exchange = gr.Dropdown(
                         choices=["binance", "bybit", "coinbase"],
                         label="Exchange",
-                        value="bybit"
+                        value="bybit",
+                        info="Target exchange"
                     )
-                
-                    price_symbol = gr.Textbox(
+                    
+                    signal_symbol = gr.Textbox(
                         label="Symbol",
                         placeholder="BTCUSDT",
-                        value="BTCUSDT"
+                        info="Trading pair (e.g., BTCUSDT, ETHUSDT)"
+                    )
+                
+                with gr.Column():
+                    signal_condition = gr.Dropdown(
+                        choices=["above", "below"],
+                        label="Condition",
+                        value="above",
+                        info="Trigger when price goes above/below target"
+                    )
+                    
+                    signal_target_price = gr.Number(
+                        label="Target Price",
+                        value=50000.0,
+                        info="Price threshold"
+                    )
+                    
+                    signal_user_id = gr.Textbox(
+                        label="User ID (Required)",
+                        placeholder="your_username (e.g., anna, john)",
+                        info="Your unique identifier for notifications",
+                        value=""
                     )
             
-                price_btn = gr.Button("Check Price", variant="primary")
-                price_output = gr.Textbox(label="Price Data", lines=8)
+            signal_notes = gr.Textbox(
+                label="Notes (Optional)",
+                placeholder="Additional information...",
+                lines=2
+            )
             
-                price_btn.click(
-                    fn=check_price,
-                    inputs=[price_exchange, price_symbol],
-                    outputs=price_output
-                )
+            save_to_sheets_check = gr.Checkbox(
+                label="Also save to Google Sheets",
+                value=True,
+                info="Sync to Google Sheets for manual editing"
+            )
+            
+            create_btn = gr.Button("Create Signal", variant="primary")
+            create_output = gr.Textbox(label="Result", lines=2)
+            create_table = gr.Dataframe(label="Current Signals")
+            
+            create_btn.click(
+                fn=create_signal,
+                inputs=[
+                    signal_name,
+                    signal_exchange,
+                    signal_symbol,
+                    signal_condition,
+                    signal_target_price,
+                    signal_user_id,
+                    signal_notes,
+                    save_to_sheets_check
+                ],
+                outputs=[create_output, create_table]
+            )
         
-            # ============================================================================
-            # TAB 5: SYNC FROM SHEETS
-            # ============================================================================
-            with gr.Tab("🔄 Sync from Sheets"):
-                gr.Markdown("""
-                ### Sync Signals from Google Sheets to DynamoDB
+        # ============================================================================
+        # TAB 2: VIEW SIGNALS
+        # ============================================================================
+        with gr.Tab("📊 View Signals"):
+            gr.Markdown("### All Trading Signals in DynamoDB")
             
-                This will read all signals from Google Sheets and save them to DynamoDB.
-                Existing signals will be updated (upsert logic).
-                """)
-            
-                sync_btn = gr.Button("Sync from Google Sheets", variant="primary")
-                sync_output = gr.Textbox(label="Result", lines=2)
-                sync_table = gr.Dataframe(label="Synced Signals")
-            
-                sync_btn.click(
-                    fn=sync_from_sheets,
-                    outputs=[sync_output, sync_table]
+            # Фильтр по User ID
+            with gr.Row():
+                filter_user_id = gr.Textbox(
+                    label="Filter by User ID",
+                    placeholder="Leave empty to see all signals, or enter username (e.g., anna)",
+                    value=""
                 )
-
-        # ============================================================================
-        # EVENT HANDLERS - Authentication
-        # ============================================================================
-
-        def handle_login(username, password, request):
-            """Обработчик логина"""
-            status, user, is_auth = login_user(username, password, request)
-
-            # Обновляем видимость UI
-            auth_col_update = gr.update(visible=not is_auth)
-            main_col_update = gr.update(visible=is_auth)
-            user_display_update = gr.update(value=f"**Logged in as:** {user}" if is_auth else "**Logged in as:** Guest")
-
-            return (
-                status,  # login_output
-                user,  # current_user state
-                is_auth,  # authenticated state
-                auth_col_update,  # auth_column visibility
-                main_col_update,  # main_column visibility
-                user_display_update,  # user_display text
-                user  # auto-fill signal_user_id
+                with gr.Column():
+                    filter_btn = gr.Button("🔍 Filter", variant="primary")
+                    refresh_btn = gr.Button("🔄 Refresh All", variant="secondary")
+            
+            signals_table = gr.Dataframe(
+                label="Trading Signals",
+                value=get_signals_table()
             )
-
-        def handle_logout(username):
-            """Обработчик логаута"""
-            status, _, is_auth = logout_user(username)
-
-            # Возвращаем к auth UI
-            return (
-                status,  # logout_output
-                "",  # current_user state
-                False,  # authenticated state
-                gr.update(visible=True),  # auth_column visible
-                gr.update(visible=False),  # main_column hidden
-                gr.update(value="**Logged in as:** Guest")  # user_display
+            
+            # Привязка кнопок
+            filter_btn.click(
+                fn=lambda user_id: get_signals_table(user_id=user_id),
+                inputs=filter_user_id,
+                outputs=signals_table
             )
-
-        # Привязка обработчиков
-        login_btn.click(
-            fn=handle_login,
-            inputs=[login_username, login_password, gr.Request()],
-            outputs=[
-                login_output,
-                current_user,
-                authenticated,
-                auth_column,
-                main_column,
-                user_display,
-                signal_user_id  # Автозаполнение User ID в Create Signal
-            ]
-        )
-
-        register_btn.click(
-            fn=register_user,
-            inputs=[reg_username, reg_password, reg_password_confirm],
-            outputs=register_output
-        )
-
-        logout_btn.click(
-            fn=handle_logout,
-            inputs=[current_user],
-            outputs=[
-                logout_output,
-                current_user,
-                authenticated,
-                auth_column,
-                main_column,
-                user_display
-            ]
-        )
-
+            
+            refresh_btn.click(
+                fn=lambda: get_signals_table(user_id=""),
+                outputs=signals_table
+            )
+        
+        # ============================================================================
+        # TAB 3: DELETE SIGNAL
+        # ============================================================================
+        with gr.Tab("🗑️ Delete Signal"):
+            gr.Markdown("### Delete Trading Signal")
+            
+            delete_id = gr.Textbox(
+                label="Signal ID",
+                placeholder="Enter short ID (e.g., a1b2c3d4...)",
+                info="Get ID from View Signals tab"
+            )
+            
+            delete_btn = gr.Button("Delete Signal", variant="stop")
+            delete_output = gr.Textbox(label="Result", lines=2)
+            delete_table = gr.Dataframe(label="Current Signals")
+            
+            delete_btn.click(
+                fn=delete_signal,
+                inputs=delete_id,
+                outputs=[delete_output, delete_table]
+            )
+        
+        # ============================================================================
+        # TAB 4: CHECK PRICE
+        # ============================================================================
+        with gr.Tab("💰 Check Price"):
+            gr.Markdown("### Get Current Price from Exchange")
+            
+            with gr.Row():
+                price_exchange = gr.Dropdown(
+                    choices=["binance", "bybit", "coinbase"],
+                    label="Exchange",
+                    value="bybit"
+                )
+                
+                price_symbol = gr.Textbox(
+                    label="Symbol",
+                    placeholder="BTCUSDT",
+                    value="BTCUSDT"
+                )
+            
+            price_btn = gr.Button("Check Price", variant="primary")
+            price_output = gr.Textbox(label="Price Data", lines=8)
+            
+            price_btn.click(
+                fn=check_price,
+                inputs=[price_exchange, price_symbol],
+                outputs=price_output
+            )
+        
+        # ============================================================================
+        # TAB 5: SYNC FROM SHEETS
+        # ============================================================================
+        with gr.Tab("🔄 Sync from Sheets"):
+            gr.Markdown("""
+            ### Sync Signals from Google Sheets to DynamoDB
+            
+            This will read all signals from Google Sheets and save them to DynamoDB.
+            Existing signals will be updated (upsert logic).
+            """)
+            
+            sync_btn = gr.Button("Sync from Google Sheets", variant="primary")
+            sync_output = gr.Textbox(label="Result", lines=2)
+            sync_table = gr.Dataframe(label="Synced Signals")
+            
+            sync_btn.click(
+                fn=sync_from_sheets,
+                outputs=[sync_output, sync_table]
+            )
+    
     return app
 
 
