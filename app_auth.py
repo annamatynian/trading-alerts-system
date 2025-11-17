@@ -120,29 +120,42 @@ def init_services():
 def register_user(username: str, password: str, email: str = "", full_name: str = "") -> Tuple[str, str]:
     """Регистрация нового пользователя"""
     try:
+        logger.info(f"🔍 REGISTRATION ATTEMPT: username='{username}'")
+
         if not username or not password:
+            logger.warning("❌ Empty username or password")
             return "❌ Username and password are required!", "error"
 
         # Создаем UserCreate
+        logger.info(f"📝 Creating UserCreate object for '{username}'")
         user_create = UserCreate(
             username=username,
             password=password,
             email=email if email else None,
             full_name=full_name if full_name else None
         )
+        logger.info(f"✅ UserCreate object created successfully")
 
         # Регистрируем
+        logger.info(f"🔄 Calling auth_service.register_user() for '{username}'")
         user = asyncio.run(auth_service.register_user(user_create))
 
+        logger.info(f"📊 auth_service.register_user() returned: {user}")
+        logger.info(f"📊 Type of returned value: {type(user)}")
+        logger.info(f"📊 Boolean value: {bool(user)}")
+
         if user:
+            logger.info(f"✅ Registration successful for '{username}'")
             return f"✅ User '{username}' registered successfully! Please login.", "success"
         else:
+            logger.warning(f"❌ Registration returned None for '{username}' - user may already exist")
             return f"❌ Username '{username}' already exists!", "error"
 
     except ValueError as e:
+        logger.error(f"❌ Validation error for '{username}': {e}")
         return f"❌ Validation error: {str(e)}", "error"
     except Exception as e:
-        logger.error(f"Error registering user: {e}")
+        logger.error(f"❌ UNEXPECTED ERROR registering user '{username}': {e}", exc_info=True)
         return f"❌ Error: {str(e)}", "error"
 
 
