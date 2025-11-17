@@ -1,4 +1,39 @@
-*.pdf  
-*.zip  
-secret-*.json  
-.env  
+*.pdf
+*.zip
+secret-*.json
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+*.log.*
+
+# Backups
+*.backup
+*.bak
