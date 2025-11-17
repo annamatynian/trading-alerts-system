@@ -166,16 +166,16 @@ def register_user(username: str, password: str):
     return asyncio.run(register_user_async(username, password))
 
 
-async def login_user_async(username: str, password: str) -> Tuple[str, str, bool]:
+async def login_user_async(username: str, password: str) -> Tuple[str, str, bool, str]:
     """
     Логин пользователя
 
     Returns:
-        (message, username, is_authenticated)
+        (message, username, is_authenticated, token)
     """
     try:
         if not username or not password:
-            return "❌ Username and password are required", "", False
+            return "❌ Username and password are required", "", False, ""
 
         # auth_service.login() raises ValueError on failure
         result = await auth_service.login(username, password)
@@ -185,33 +185,62 @@ async def login_user_async(username: str, password: str) -> Tuple[str, str, bool
         session_id = result['session_id']
         logger.info(f"✅ User '{username}' logged in successfully (session: {session_id[:8]}...)")
 
-        return f"✅ Welcome, {username}!", username, True
+        return f"✅ Welcome, {username}!", username, True, token
 
     except ValueError as e:
         # Invalid credentials or rate limit
         logger.warning(f"❌ Login failed for '{username}': {e}")
-        return f"❌ Login failed: {str(e)}", "", False
+        return f"❌ Login failed: {str(e)}", "", False, ""
 
     except Exception as e:
         logger.error(f"❌ Unexpected login error: {e}")
-        return f"❌ Error: {str(e)}", "", False
+        return f"❌ Error: {str(e)}", "", False, ""
 
 
 def login_user(username: str, password: str):
     """Wrapper для логина"""
-    return asyncio.run(login_user_async(username, password))
+    return asyncio.run(login_user_async(username, password))  # Returns (msg, user, is_auth, token)
 
 
-def logout_user(current_user: str) -> Tuple[str, str, bool]:
+async def auto_login_async(token: str) -> Tuple[str, str, bool, str]:
+    """
+    Автоматический логин по сохраненному токену
+
+    Returns:
+        (message, username, is_authenticated, token)
+    """
+    try:
+        if not token or token.strip() == "":
+            return "", "", False, ""
+
+        # Проверяем токен через auth_service
+        payload = await auth_service.validate_token(token)
+        username = payload.get('username', '')
+
+        logger.info(f"✅ Auto-login successful for user: {username}")
+        return f"✅ Welcome back, {username}!", username, True, token
+
+    except Exception as e:
+        # Токен невалиден или истек
+        logger.debug(f"Auto-login failed: {e}")
+        return "", "", False, ""
+
+
+def auto_login(token: str):
+    """Wrapper для auto-login"""
+    return asyncio.run(auto_login_async(token))
+
+
+def logout_user(current_user: str) -> Tuple[str, str, bool, str]:
     """
     Логаут пользователя
 
     Returns:
-        (message, username, is_authenticated)
+        (message, username, is_authenticated, token)
     """
     try:
         logger.info(f"✅ User '{current_user}' logged out")
-        return f"✅ Goodbye, {current_user}!", "", False
+        return f"✅ Goodbye, {current_user}!", "", False, ""
     except Exception as e:
         logger.error(f"❌ Logout error: {e}")
         return f"❌ Error: {str(e)}", "", False
@@ -493,6 +522,71 @@ def create_interface():
         # State для аутентификации
         current_user = gr.State("")  # Текущий залогиненный пользователь
         is_authenticated = gr.State(False)  # Флаг аутентификации
+        auth_token = gr.Textbox(value="", visible=False, elem_id="auth_token")  # JWT токен (скрытый)
+
+        # JavaScript для работы с localStorage
+        gr.HTML("""
+        <script>
+        // Функция для сохранения токена в localStorage
+        function saveToken(token) {
+            if (token && token.trim() !== "") {
+                localStorage.setItem('jwt_token', token);
+                console.log('Token saved to localStorage');
+            }
+        }
+
+        // Функция для загрузки токена из localStorage
+        function loadToken() {
+            const token = localStorage.getItem('jwt_token');
+            console.log('Token loaded from localStorage:', token ? 'exists' : 'none');
+            return token || "";
+        }
+
+        // Функция для удаления токена из localStorage
+        function clearToken() {
+            localStorage.removeItem('jwt_token');
+            console.log('Token cleared from localStorage');
+        }
+
+        // При загрузке страницы - загружаем токен и триггерим auto-login
+        window.addEventListener('load', function() {
+            const token = loadToken();
+            if (token) {
+                console.log('Found saved token, triggering auto-login');
+                // Находим скрытое поле с токеном и обновляем его
+                const tokenField = document.getElementById('auth_token');
+                if (tokenField) {
+                    const textarea = tokenField.querySelector('textarea');
+                    if (textarea) {
+                        textarea.value = token;
+                        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                }
+            }
+        });
+
+        // Следим за изменениями токена и сохраняем в localStorage
+        document.addEventListener('DOMContentLoaded', function() {
+            const tokenField = document.getElementById('auth_token');
+            if (tokenField) {
+                const observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        const textarea = tokenField.querySelector('textarea');
+                        if (textarea) {
+                            const token = textarea.value;
+                            if (token && token.trim() !== "") {
+                                saveToken(token);
+                            } else {
+                                clearToken();
+                            }
+                        }
+                    });
+                });
+                observer.observe(tokenField, { childList: true, subtree: true });
+            }
+        });
+        </script>
+        """)
 
         # ============================================================================
         # AUTHENTICATION UI
@@ -692,12 +786,13 @@ def create_interface():
 
         def handle_login(username, password):
             """Обработчик логина"""
-            msg, user, is_auth = login_user(username, password)
+            msg, user, is_auth, token = login_user(username, password)
 
             return (
                 msg,  # login_output
                 user,  # current_user (State)
                 is_auth,  # is_authenticated (State)
+                token,  # auth_token (будет сохранен в localStorage через JS)
                 gr.update(visible=not is_auth),  # auth_row
                 gr.update(visible=is_auth),  # user_info_row
                 gr.update(visible=is_auth),  # main_app
@@ -708,18 +803,52 @@ def create_interface():
 
         def handle_logout(user):
             """Обработчик логаута"""
-            msg, empty_user, is_auth = logout_user(user)
+            msg, empty_user, is_auth, token = logout_user(user)
 
             return (
                 msg,  # Сообщение в login_output
                 empty_user,  # current_user (State)
                 is_auth,  # is_authenticated (State)
+                token,  # auth_token (пустой - будет удален из localStorage через JS)
                 gr.update(visible=True),  # auth_row
                 gr.update(visible=False),  # user_info_row
                 gr.update(visible=False),  # main_app
                 "**Logged in as:** Guest",  # user_display
                 "",  # signal_user_id (clear)
                 get_signals_table()  # signals_table (show all)
+            )
+
+        def handle_auto_login(token):
+            """Обработчик auto-login при загрузке страницы"""
+            msg, user, is_auth, validated_token = auto_login(token)
+
+            # Если auto-login не удался - возвращаем состояние "не залогинен"
+            if not is_auth:
+                return (
+                    "",  # login_output (no message)
+                    "",  # current_user
+                    False,  # is_authenticated
+                    "",  # auth_token (clear)
+                    gr.update(visible=True),  # auth_row
+                    gr.update(visible=False),  # user_info_row
+                    gr.update(visible=False),  # main_app
+                    "**Logged in as:** Guest",  # user_display
+                    "",  # signal_user_id
+                    get_signals_table()  # signals_table
+                )
+
+            # Auto-login успешен
+            return (
+                msg,  # login_output
+                user,  # current_user
+                is_auth,  # is_authenticated
+                validated_token,  # auth_token
+                gr.update(visible=False),  # auth_row (hide)
+                gr.update(visible=True),  # user_info_row (show)
+                gr.update(visible=True),  # main_app (show)
+                f"**Logged in as:** {user}",  # user_display
+                user,  # signal_user_id (auto-fill)
+                get_signals_table(user)  # signals_table
             )
 
         def handle_register(username, password):
@@ -734,6 +863,7 @@ def create_interface():
                 login_output,
                 current_user,
                 is_authenticated,
+                auth_token,  # JWT токен (сохраняется в localStorage)
                 auth_row,
                 user_info_row,
                 main_app,
@@ -750,6 +880,25 @@ def create_interface():
                 login_output,
                 current_user,
                 is_authenticated,
+                auth_token,  # Очищается
+                auth_row,
+                user_info_row,
+                main_app,
+                user_display,
+                signal_user_id,
+                signals_table
+            ]
+        )
+
+        # Auto-login при загрузке токена из localStorage
+        auth_token.change(
+            fn=handle_auto_login,
+            inputs=[auth_token],
+            outputs=[
+                login_output,
+                current_user,
+                is_authenticated,
+                auth_token,
                 auth_row,
                 user_info_row,
                 main_app,
