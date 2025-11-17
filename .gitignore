@@ -42,6 +42,11 @@ ENV/
 secret-*.json
 credentials.json
 service-account.json
+*accessKeys.csv
+*rootkey.csv
+*.pem
+*.key
+*.ppk
 
 # Archives
 *.pdf
