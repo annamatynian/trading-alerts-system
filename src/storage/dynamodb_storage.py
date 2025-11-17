@@ -297,3 +297,120 @@ class DynamoDBStorage(StorageBase):
     async def get_all_signals(self) -> List[SignalTarget]:
         """Alias for load_signals() for compatibility"""
         return await self.load_signals()
+
+    # ============================================================================
+    # USER MANAGEMENT METHODS
+    # ============================================================================
+
+    def _user_to_item(self, user) -> Dict[str, Any]:
+        """
+        Convert User object to DynamoDB item
+
+        Args:
+            user: User object from models.user
+
+        Returns:
+            DynamoDB item dictionary
+        """
+        item = {
+            'PK': f"user#{user.username}",
+            'SK': 'metadata',
+            'entity_type': 'user',
+            'username': user.username,
+            'password_hash': user.password_hash,
+            'created_at': user.created_at.isoformat(),
+            'is_active': user.is_active,
+        }
+
+        # Optional fields
+        if user.email:
+            item['email'] = user.email
+        if user.full_name:
+            item['full_name'] = user.full_name
+        if user.last_login:
+            item['last_login'] = user.last_login.isoformat()
+        if user.pushover_key:
+            item['pushover_key'] = user.pushover_key
+        if user.telegram_chat_id:
+            item['telegram_chat_id'] = user.telegram_chat_id
+        if user.timezone:
+            item['timezone'] = user.timezone
+
+        return item
+
+    def _item_to_user(self, item: Dict[str, Any]):
+        """
+        Convert DynamoDB item to User object
+
+        Args:
+            item: DynamoDB item dictionary
+
+        Returns:
+            User object from models.user
+        """
+        from models.user import User
+
+        return User(
+            username=item['username'],
+            password_hash=item['password_hash'],
+            email=item.get('email'),
+            full_name=item.get('full_name'),
+            created_at=datetime.fromisoformat(item['created_at']),
+            last_login=datetime.fromisoformat(item['last_login']) if item.get('last_login') else None,
+            is_active=item.get('is_active', True),
+            pushover_key=item.get('pushover_key'),
+            telegram_chat_id=item.get('telegram_chat_id'),
+            timezone=item.get('timezone'),
+        )
+
+    async def get_user(self, username: str):
+        """
+        Get user by username
+
+        Args:
+            username: Username to lookup
+
+        Returns:
+            User object if found, None otherwise
+        """
+        try:
+            response = await asyncio.to_thread(
+                self.table.get_item,
+                Key={
+                    'PK': f"user#{username.lower()}",
+                    'SK': 'metadata'
+                }
+            )
+
+            item = response.get('Item')
+            if not item:
+                logger.debug(f"User not found: {username}")
+                return None
+
+            user = self._item_to_user(item)
+            logger.debug(f"User found: {username}")
+            return user
+
+        except ClientError as e:
+            logger.error(f"Failed to get user {username}: {e}")
+            return None
+
+    async def save_user(self, user) -> bool:
+        """
+        Save or update user in DynamoDB
+
+        Args:
+            user: User object to save
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            item = self._user_to_item(user)
+            await asyncio.to_thread(self.table.put_item, Item=item)
+            logger.info(f"✅ Saved user: {user.username}")
+            return True
+
+        except ClientError as e:
+            logger.error(f"Failed to save user {user.username}: {e}")
+            return False
