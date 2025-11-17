@@ -293,3 +293,7 @@ class DynamoDBStorage(StorageBase):
         except ClientError as e:
             logger.error(f"Failed to save user data for {user_id}: {e}")
             return False
+
+    async def get_all_signals(self) -> List[SignalTarget]:
+        """Alias for load_signals() for compatibility"""
+        return await self.load_signals()

@@ -45,7 +45,7 @@ def init_services():
         
         # Инициализируем DynamoDB
         table_name = os.getenv('DYNAMODB_TABLE_NAME', 'trading-alerts')
-        region = os.getenv('DYNAMODB_REGION', 'us-east-2')
+        region = os.getenv('DYNAMODB_REGION', 'eu-west-1')
         storage = DynamoDBStorage(table_name=table_name, region=region)
         logger.info(f"✅ DynamoDB initialized: {table_name} in {region}")
         
