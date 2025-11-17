@@ -123,7 +123,8 @@ class AuthService:
         algorithm: str = "HS256",
         access_token_expire_hours: int = 24,
         session_storage: Optional[SessionStorage] = None,
-        rate_limiter: Optional[RateLimiter] = None
+        rate_limiter: Optional[RateLimiter] = None,
+        user_storage = None  # DynamoDBStorage instance
     ):
         """
         Инициализирует AuthService
@@ -134,6 +135,7 @@ class AuthService:
             access_token_expire_hours: Время жизни токена в часах
             session_storage: SessionStorage instance (если None - создает новый)
             rate_limiter: RateLimiter instance (если None - создает новый)
+            user_storage: DynamoDBStorage instance для persistence пользователей
         """
         # JWT configuration
         self.secret_key = secret_key or os.getenv('JWT_SECRET_KEY') or secrets.token_urlsafe(32)
@@ -148,14 +150,37 @@ class AuthService:
         # Rate limiter
         self.rate_limiter = rate_limiter or RateLimiter()
 
-        # In-memory user storage (для demo - в production использовать DynamoDB)
+        # User storage (DynamoDB для persistence)
+        self.user_storage = user_storage
+
+        # In-memory user cache (загружается из DynamoDB)
         self.users: Dict[str, Dict[str, Any]] = {}
 
         logger.info(
             f"AuthService initialized (algorithm: {algorithm}, "
             f"token_ttl: {access_token_expire_hours}h, "
-            f"bcrypt: {BCRYPT_AVAILABLE})"
+            f"bcrypt: {BCRYPT_AVAILABLE}, "
+            f"persistence: {self.user_storage is not None})"
         )
+
+    async def load_users_from_storage(self):
+        """Загружает всех пользователей из DynamoDB в память (вызывается при старте)"""
+        try:
+            if not self.user_storage:
+                logger.info("⊘ No user_storage configured, skipping user load")
+                return
+
+            users_list = await self.user_storage.get_all_users()
+
+            for user_data in users_list:
+                username = user_data.get('username')
+                if username:
+                    self.users[username] = user_data
+
+            logger.info(f"✅ Loaded {len(users_list)} users from DynamoDB into memory")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to load users from DynamoDB: {e}")
 
     def _hash_password(self, password: str) -> str:
         """
@@ -252,7 +277,15 @@ class AuthService:
 
         self.users[username] = user
 
-        logger.info(f"✅ User registered: {username} (ID: {user_id})")
+        # Сохраняем в DynamoDB если доступно
+        if self.user_storage:
+            saved = await self.user_storage.save_user(username, user)
+            if saved:
+                logger.info(f"✅ User registered and saved to DynamoDB: {username} (ID: {user_id})")
+            else:
+                logger.warning(f"⚠️  User registered but failed to save to DynamoDB: {username}")
+        else:
+            logger.info(f"✅ User registered (memory only): {username} (ID: {user_id})")
 
         # Возвращаем без password_hash
         return {

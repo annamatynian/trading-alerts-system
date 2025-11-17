@@ -294,6 +294,93 @@ class DynamoDBStorage(StorageBase):
             logger.error(f"Failed to save user data for {user_id}: {e}")
             return False
 
+    async def get_user_by_username(self, username: str) -> Optional[Dict[str, Any]]:
+        """
+        Получает пользователя по username (TRUE ASYNC)
+
+        Args:
+            username: Username пользователя
+
+        Returns:
+            Словарь с данными пользователя или None если не найден
+        """
+        try:
+            response = await asyncio.to_thread(
+                self.table.get_item,
+                Key={'PK': f"user#{username}", 'SK': 'metadata'}
+            )
+
+            if 'Item' not in response:
+                return None
+
+            item = response['Item']
+            # Убираем служебные поля
+            user_data = {k: v for k, v in item.items() if k not in ['PK', 'SK', 'entity_type']}
+            return user_data
+
+        except ClientError as e:
+            logger.error(f"Failed to get user by username {username}: {e}")
+            return None
+
+    async def save_user(self, username: str, user_data: Dict[str, Any]) -> bool:
+        """
+        Сохраняет пользователя по username (TRUE ASYNC)
+
+        Args:
+            username: Username пользователя
+            user_data: Словарь с данными (user_id, password_hash, created_at, metadata)
+
+        Returns:
+            True если успешно
+        """
+        try:
+            item = {
+                'PK': f"user#{username}",
+                'SK': 'metadata',
+                'entity_type': 'user',
+                'username': username,
+                **user_data  # user_id, password_hash, created_at, metadata
+            }
+
+            await asyncio.to_thread(self.table.put_item, Item=item)
+            logger.debug(f"Saved user: {username}")
+            return True
+
+        except ClientError as e:
+            logger.error(f"Failed to save user {username}: {e}")
+            return False
+
+    async def get_all_users(self) -> List[Dict[str, Any]]:
+        """
+        Получает всех пользователей (TRUE ASYNC)
+
+        Returns:
+            Список словарей с данными пользователей
+        """
+        try:
+            # Сканируем таблицу, ищем только user# записи
+            response = await asyncio.to_thread(
+                self.table.scan,
+                FilterExpression='begins_with(PK, :pk_prefix) AND entity_type = :entity',
+                ExpressionAttributeValues={
+                    ':pk_prefix': 'user#',
+                    ':entity': 'user'
+                }
+            )
+
+            users = []
+            for item in response.get('Items', []):
+                # Убираем служебные поля
+                user_data = {k: v for k, v in item.items() if k not in ['PK', 'SK', 'entity_type']}
+                users.append(user_data)
+
+            logger.debug(f"Loaded {len(users)} users from DynamoDB")
+            return users
+
+        except ClientError as e:
+            logger.error(f"Failed to get all users: {e}")
+            return []
+
     async def get_all_signals(self) -> List[SignalTarget]:
         """Alias for load_signals() for compatibility"""
         return await self.load_signals()

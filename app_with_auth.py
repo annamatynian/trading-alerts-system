@@ -61,7 +61,8 @@ def init_services():
         jwt_secret = os.getenv('JWT_SECRET_KEY', 'default-secret-change-me-in-production')
         auth_service = AuthService(
             session_storage=session_storage,
-            secret_key=jwt_secret
+            secret_key=jwt_secret,
+            user_storage=storage  # Передаем DynamoDB для персистентности пользователей
         )
         logger.info(f"✅ Auth Service initialized")
 
@@ -75,6 +76,10 @@ def init_services():
         # Инициализируем биржи
         async def init_exchanges_async():
             global exchanges, price_checker
+
+            # Загружаем пользователей из DynamoDB в память
+            await auth_service.load_users_from_storage()
+            logger.info(f"✅ Loaded {len(auth_service.users)} users from DynamoDB")
 
             # Binance
             if ExchangeType.BINANCE in config.exchanges:
