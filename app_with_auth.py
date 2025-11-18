@@ -637,6 +637,13 @@ def create_interface():
                     outputs=[create_output, create_table]
                 )
 
+                # Auto-uppercase для символа (btcusdt → BTCUSDT)
+                signal_symbol.change(
+                    fn=lambda x: x.upper() if x else "",
+                    inputs=[signal_symbol],
+                    outputs=[signal_symbol]
+                )
+
             # TAB 2: VIEW SIGNALS
             with gr.Tab("📊 View Signals"):
                 gr.Markdown("### Your Trading Signals")
