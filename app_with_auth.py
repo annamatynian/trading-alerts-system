@@ -589,7 +589,7 @@ def create_interface():
 
                         signal_target_price = gr.Number(
                             label="Target Price",
-                            value=50000.0,
+                            value=None,
                             info="Price threshold"
                         )
 
