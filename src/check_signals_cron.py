@@ -116,6 +116,10 @@ async def main():
                     condition = SignalCondition.ABOVE
                 elif 'below' in condition_str or '<' in condition_str:
                     condition = SignalCondition.BELOW
+                elif 'equal' in condition_str or '=' in condition_str or '==' in condition_str:
+                    condition = SignalCondition.EQUAL
+                elif 'percent' in condition_str or '%' in condition_str:
+                    condition = SignalCondition.PERCENT_CHANGE
                 else:
                     logger.warning(f"⚠️  Signal {i}: Unknown condition '{condition_str}' - skipping")
                     continue
