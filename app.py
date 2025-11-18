@@ -210,7 +210,7 @@ def get_signals_table(user_id: str = "") -> pd.DataFrame:
         
         if not signals:
             return pd.DataFrame(columns=[
-                'ID', 'Name', 'User ID', 'Exchange', 'Symbol', 'Condition', 
+                'Full ID', 'Name', 'User ID', 'Exchange', 'Symbol', 'Condition',
                 'Target Price', 'Status', 'Created', 'Triggered Count'
             ])
         
@@ -218,7 +218,7 @@ def get_signals_table(user_id: str = "") -> pd.DataFrame:
         data = []
         for signal in signals:
             data.append({
-                'ID': signal.id[:8] + '...',
+                'Full ID': signal.id,  # Полный ID для копирования
                 'Name': signal.name,
                 'User ID': signal.user_id or 'N/A',
                 'Exchange': signal.exchange.value if signal.exchange else 'any',
@@ -268,6 +268,31 @@ async def delete_signal_async(signal_id: str) -> Tuple[str, pd.DataFrame]:
 def delete_signal(signal_id: str):
     """Wrapper для удаления сигнала"""
     return asyncio.run(delete_signal_async(signal_id))
+
+
+def get_signals_for_dropdown(user_id: str = "") -> list:
+    """Получение списка сигналов для dropdown в формате 'Name (ID)': 'full_id'"""
+    try:
+        signals = asyncio.run(storage.get_all_signals())
+
+        # Фильтруем по user_id если указан
+        if user_id and user_id.strip():
+            signals = [s for s in signals if s.user_id and s.user_id.strip() == user_id.strip()]
+
+        if not signals:
+            return []
+
+        # Формируем список: отображаемое имя и полный ID
+        choices = []
+        for signal in signals:
+            display_name = f"{signal.name} ({signal.symbol} {signal.condition.value} ${signal.target_price:.2f})"
+            choices.append((display_name, signal.id))
+
+        return choices
+
+    except Exception as e:
+        logger.error(f"❌ Error getting signals for dropdown: {e}")
+        return []
 
 
 async def check_price_async(exchange: str, symbol: str) -> str:
@@ -508,20 +533,55 @@ def create_interface():
         # ============================================================================
         with gr.Tab("🗑️ Delete Signal"):
             gr.Markdown("### Delete Trading Signal")
-            
-            delete_id = gr.Textbox(
-                label="Signal ID",
-                placeholder="Enter short ID (e.g., a1b2c3d4...)",
-                info="Get ID from View Signals tab"
+
+            # Фильтр по User ID для загрузки сигналов
+            with gr.Row():
+                delete_filter_user_id = gr.Textbox(
+                    label="Filter by User ID (Optional)",
+                    placeholder="Enter username to filter your signals only",
+                    value=""
+                )
+                load_signals_btn = gr.Button("🔄 Load My Signals", variant="secondary")
+
+            # Dropdown для выбора сигнала
+            delete_signal_dropdown = gr.Dropdown(
+                label="Select Signal to Delete",
+                choices=get_signals_for_dropdown(),
+                info="Choose signal from the list or paste Full ID in the field below"
             )
-            
+
+            # Альтернативный способ - вставить ID вручную
+            delete_id = gr.Textbox(
+                label="Or Paste Full Signal ID",
+                placeholder="Paste full ID from View Signals tab",
+                info="You can copy Full ID from View Signals tab and paste it here"
+            )
+
             delete_btn = gr.Button("Delete Signal", variant="stop")
             delete_output = gr.Textbox(label="Result", lines=2)
             delete_table = gr.Dataframe(label="Current Signals")
-            
+
+            # Обработка нажатия кнопки загрузки сигналов
+            def update_delete_dropdown(user_id):
+                choices = get_signals_for_dropdown(user_id)
+                return gr.Dropdown(choices=choices)
+
+            load_signals_btn.click(
+                fn=update_delete_dropdown,
+                inputs=delete_filter_user_id,
+                outputs=delete_signal_dropdown
+            )
+
+            # Обработка удаления - берем ID из dropdown или из текстового поля
+            def delete_signal_handler(dropdown_value, text_value):
+                signal_id = dropdown_value if dropdown_value else text_value
+                if not signal_id:
+                    return "❌ Please select a signal or paste an ID", get_signals_table()
+                return delete_signal(signal_id)
+
             delete_btn.click(
-                fn=delete_signal,
-                inputs=delete_id,
+                fn=delete_signal_handler,
+                inputs=[delete_signal_dropdown, delete_id],
                 outputs=[delete_output, delete_table]
             )
         
