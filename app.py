@@ -508,20 +508,75 @@ def create_interface():
         # ============================================================================
         with gr.Tab("🗑️ Delete Signal"):
             gr.Markdown("### Delete Trading Signal")
-            
-            delete_id = gr.Textbox(
-                label="Signal ID",
-                placeholder="Enter short ID (e.g., a1b2c3d4...)",
-                info="Get ID from View Signals tab"
+
+            with gr.Row():
+                filter_user_id = gr.Textbox(
+                    label="Filter by User ID (optional)",
+                    placeholder="Enter your User ID to see only your signals",
+                    scale=3
+                )
+                load_signals_btn = gr.Button("🔄 Load Signals", scale=1, variant="secondary")
+
+            # State для хранения mapping label -> id
+            signal_mapping = gr.State({})
+
+            signal_dropdown = gr.Dropdown(
+                label="Select Signal to Delete",
+                choices=[],
+                interactive=True,
+                info="First, load signals above"
             )
-            
+
             delete_btn = gr.Button("Delete Signal", variant="stop")
             delete_output = gr.Textbox(label="Result", lines=2)
             delete_table = gr.Dataframe(label="Current Signals")
-            
+
+            # Загрузка сигналов в dropdown
+            def load_signals_to_dropdown(user_id: str = ""):
+                try:
+                    signals = asyncio.run(storage.get_all_signals())
+
+                    # Фильтруем по user_id если указан
+                    if user_id and user_id.strip():
+                        signals = [s for s in signals if s.user_id and s.user_id.strip() == user_id.strip()]
+
+                    if not signals:
+                        return gr.update(choices=[], value=None), {}
+
+                    # Формируем список и mapping
+                    choices = []
+                    mapping = {}
+                    for signal in signals:
+                        label = f"{signal.name} ({signal.symbol}, {signal.condition.value}, ${signal.target_price:.2f})"
+                        choices.append(label)
+                        mapping[label] = signal.id
+
+                    return gr.update(choices=choices, value=None), mapping
+
+                except Exception as e:
+                    logger.error(f"❌ Error loading signals: {e}")
+                    return gr.update(choices=[], value=None), {}
+
+            # Удаление выбранного сигнала
+            def delete_selected_signal(selected_label: str, mapping: dict):
+                if not selected_label:
+                    return "⚠️ Please select a signal first", get_signals_table()
+
+                signal_id = mapping.get(selected_label)
+                if not signal_id:
+                    return "❌ Signal not found in mapping", get_signals_table()
+
+                return delete_signal(signal_id)
+
+            load_signals_btn.click(
+                fn=load_signals_to_dropdown,
+                inputs=filter_user_id,
+                outputs=[signal_dropdown, signal_mapping]
+            )
+
             delete_btn.click(
-                fn=delete_signal,
-                inputs=delete_id,
+                fn=delete_selected_signal,
+                inputs=[signal_dropdown, signal_mapping],
                 outputs=[delete_output, delete_table]
             )
         
