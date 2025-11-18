@@ -688,13 +688,21 @@ def create_interface():
                 def load_signals_to_dropdown(user_id: str):
                     """Загружает сигналы текущего пользователя в dropdown"""
                     try:
+                        logger.info(f"🔍 [DROPDOWN] Loading signals for user: '{user_id}'")
+
                         signals = asyncio.run(storage.get_all_signals())
+                        logger.info(f"📊 [DROPDOWN] Total signals in DB: {len(signals)}")
 
                         # Фильтруем только сигналы текущего пользователя
                         if user_id and user_id.strip():
+                            before_filter = len(signals)
                             signals = [s for s in signals if s.user_id and s.user_id.strip() == user_id.strip()]
+                            logger.info(f"✅ [DROPDOWN] Filtered from {before_filter} to {len(signals)} signals for user '{user_id}'")
+                        else:
+                            logger.warning(f"⚠️ [DROPDOWN] user_id is empty!")
 
                         if not signals:
+                            logger.warning(f"⚠️ [DROPDOWN] No signals found for user: '{user_id}'")
                             return gr.update(choices=[], value=None), {}
 
                         # Формируем список и mapping
@@ -705,10 +713,11 @@ def create_interface():
                             choices.append(label)
                             mapping[label] = signal.id
 
+                        logger.info(f"✅ [DROPDOWN] Successfully loaded {len(choices)} signals into dropdown")
                         return gr.update(choices=choices, value=None), mapping
 
                     except Exception as e:
-                        logger.error(f"❌ Error loading signals: {e}")
+                        logger.error(f"❌ [DROPDOWN] Error loading signals: {e}", exc_info=True)
                         return gr.update(choices=[], value=None), {}
 
                 # Удаление выбранного сигнала
