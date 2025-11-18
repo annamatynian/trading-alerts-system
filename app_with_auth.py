@@ -590,7 +590,9 @@ def create_interface():
                         signal_symbol = gr.Textbox(
                             label="Symbol",
                             placeholder="BTCUSDT",
-                            info="Trading pair (e.g., BTCUSDT, ETHUSDT)"
+                            info="Trading pair (e.g., BTCUSDT, ETHUSDT)",
+                            max_length=15,  # Ограничение длины
+                            elem_id="signal_symbol"  # Для JavaScript
                         )
 
                     with gr.Column():
@@ -619,6 +621,44 @@ def create_interface():
                     info="Sync to Google Sheets for manual editing"
                 )
 
+                # JavaScript для автоконвертации символа в uppercase и блокировки после USDT/USDC/USD
+                gr.HTML("""
+                <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    // Ждем пока Gradio создаст элементы
+                    setTimeout(function() {
+                        const symbolInput = document.querySelector('#signal_symbol input, #signal_symbol textarea');
+                        if (symbolInput) {
+                            symbolInput.addEventListener('input', function(e) {
+                                const cursorPos = this.selectionStart;
+                                const oldValue = this.value;
+                                const newValue = oldValue.toUpperCase();
+
+                                // Блокируем ввод после USDT/USDC/USD
+                                if (newValue.endsWith('USDT') || newValue.endsWith('USDC') || newValue.endsWith('USD')) {
+                                    // Если пытаются добавить символы после валидного окончания - удаляем их
+                                    const lastValid = newValue.match(/(.*?)(USDT|USDC|USD)$/);
+                                    if (lastValid && newValue.length > lastValid[0].length) {
+                                        this.value = lastValid[0];
+                                        return;
+                                    }
+                                }
+
+                                // Применяем uppercase
+                                if (this.value !== newValue) {
+                                    this.value = newValue;
+                                    this.setSelectionRange(cursorPos, cursorPos);
+
+                                    // Триггерим Gradio событие для обновления состояния
+                                    this.dispatchEvent(new Event('input', { bubbles: true }));
+                                }
+                            });
+                        }
+                    }, 1000);
+                });
+                </script>
+                """)
+
                 create_btn = gr.Button("Create Signal", variant="primary")
                 create_output = gr.Textbox(label="Result", lines=2)
                 create_table = gr.Dataframe(label="Your Signals")
@@ -635,13 +675,6 @@ def create_interface():
                         save_to_sheets_check
                     ],
                     outputs=[create_output, create_table]
-                )
-
-                # Auto-uppercase для символа (btcusdt → BTCUSDT)
-                signal_symbol.change(
-                    fn=lambda x: x.upper() if x else "",
-                    inputs=[signal_symbol],
-                    outputs=[signal_symbol]
                 )
 
             # TAB 2: VIEW SIGNALS
