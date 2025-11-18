@@ -5,6 +5,7 @@ Gradio Web Interface для Trading Alert System с JWT Authentication
 import os
 import sys
 import asyncio
+import re
 import logging
 from datetime import datetime
 from typing import List, Tuple, Optional
@@ -265,15 +266,28 @@ async def create_signal_async(
         if not user_id or user_id.strip() == "":
             return "❌ User ID is required! Please enter your username.", get_signals_table()
 
+        # Валидация и автокоррекция символа
+        symbol = symbol.strip().upper()  # Автоматически в uppercase
+
+        # Проверка формата символа: BTCUSDT, ETHUSDC, SOLUSD и т.д.
+        symbol_pattern = r'^[A-Z]{2,10}(USDT|USDC|USD)$'
+        if not re.match(symbol_pattern, symbol):
+            return (
+                f"❌ Invalid symbol format: '{symbol}'\n"
+                f"Expected format: BTCUSDT, ETHUSDC, SOLUSD, etc.\n"
+                f"(2-10 letters + USDT/USDC/USD)",
+                get_signals_table()
+            )
+
         # Автогенерация имени сигнала: "BTCUSDT > 50000 (Bybit)"
         condition_symbol = ">" if condition.lower() == "above" else "<"
-        auto_name = f"{symbol.upper()} {condition_symbol} {target_price} ({exchange.capitalize()})"
+        auto_name = f"{symbol} {condition_symbol} {target_price} ({exchange.capitalize()})"
 
         # Создаем SignalTarget
         signal = SignalTarget(
             name=auto_name,
             exchange=ExchangeType(exchange.lower()),
-            symbol=symbol.upper(),
+            symbol=symbol,  # Уже в uppercase после валидации
             condition=SignalCondition(condition.lower()),
             target_price=target_price,
             user_id=user_id,
