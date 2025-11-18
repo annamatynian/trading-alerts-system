@@ -269,6 +269,15 @@ async def create_signal_async(
         # Валидация и автокоррекция символа
         symbol = symbol.strip().upper()  # Автоматически в uppercase
 
+        # Автоматическая обрезка лишних символов после USDT/USDC/USD
+        # Если пользователь ввел "BTCUSDTXYZ" → обрезаем до "BTCUSDT"
+        for ending in ['USDT', 'USDC', 'USD']:
+            idx = symbol.find(ending)
+            if idx != -1:
+                # Нашли ending, обрезаем всё после него
+                symbol = symbol[:idx + len(ending)]
+                break
+
         # Проверка формата символа: BTCUSDT, ETHUSDC, SOLUSD и т.д.
         symbol_pattern = r'^[A-Z]{2,10}(USDT|USDC|USD)$'
         if not re.match(symbol_pattern, symbol):
@@ -624,31 +633,6 @@ def create_interface():
                 create_btn = gr.Button("Create Signal", variant="primary")
                 create_output = gr.Textbox(label="Result", lines=2)
                 create_table = gr.Dataframe(label="Your Signals")
-
-                # Функция для форматирования символа
-                def format_symbol(symbol: str) -> str:
-                    """Конвертирует в uppercase и обрезает после USDT/USDC/USD"""
-                    if not symbol:
-                        return ""
-
-                    symbol = symbol.strip().upper()
-
-                    # Ищем первое вхождение USDT/USDC/USD и обрезаем после него
-                    for ending in ['USDT', 'USDC', 'USD']:
-                        idx = symbol.find(ending)
-                        if idx != -1:
-                            # Нашли ending, возвращаем все до конца ending
-                            return symbol[:idx + len(ending)]
-
-                    # Если не нашли ни одного ending - просто возвращаем uppercase
-                    return symbol
-
-                # Auto-format символа при выходе из поля (blur)
-                signal_symbol.blur(
-                    fn=format_symbol,
-                    inputs=[signal_symbol],
-                    outputs=[signal_symbol]
-                )
 
                 create_btn.click(
                     fn=create_signal,
