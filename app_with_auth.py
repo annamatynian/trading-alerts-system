@@ -738,10 +738,10 @@ def create_interface():
 
                     with gr.Column():
                         signal_condition = gr.Dropdown(
-                            choices=["above", "below"],
+                            choices=["above", "below", "equal"],
                             label="Condition",
                             value="above",
-                            info="Trigger when price goes above/below target"
+                            info="Trigger condition: above (>), below (<), or equal (=)"
                         )
 
                         signal_target_price = gr.Number(
