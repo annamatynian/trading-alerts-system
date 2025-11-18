@@ -266,6 +266,27 @@ signal = SignalTarget(
 
 ## Проблемы и решения
 
+### Проблема: "ResourceNotFoundException" в DynamoDB тестах
+**Симптом**: Все тесты падают с ошибкой `ResourceNotFoundException: Requested resource not found`
+
+**Причина**: `with mock_aws():` context manager завершается до запуска теста, поэтому мок-таблица не доступна.
+
+**Решение**: Создан отдельный fixture `mock_dynamodb` который держит context manager активным:
+```python
+@pytest.fixture(scope='function')
+def mock_dynamodb(aws_credentials):
+    """Активирует mock_aws для каждого теста"""
+    with mock_aws():
+        yield
+
+@pytest.fixture
+def dynamodb_table(mock_dynamodb):
+    """Создает таблицу ВНУТРИ активного mock_aws context"""
+    dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+    table = dynamodb.create_table(...)
+    yield table
+```
+
 ### Проблема: "No module named 'pydantic'"
 ```bash
 pip install pydantic>=2.0.0
@@ -281,6 +302,12 @@ pip install aioresponses>=0.7.0
 ```bash
 cd /path/to/trading-alerts-system
 pytest tests/
+```
+
+### Проблема: "PydanticDeprecatedSince20" warnings
+Эти warning'и можно игнорировать - они не влияют на работу тестов. Если хотите убрать:
+```bash
+pytest tests/ -v --disable-warnings
 ```
 
 ## Заключение

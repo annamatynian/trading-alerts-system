@@ -12,7 +12,7 @@ from storage.dynamodb_storage import DynamoDBStorage
 from storage.session_storage import SessionStorage
 
 
-@pytest.fixture
+@pytest.fixture(scope='function')
 def aws_credentials(monkeypatch):
     """Мокируем AWS credentials для тестов"""
     monkeypatch.setenv('AWS_ACCESS_KEY_ID', 'testing')
@@ -22,37 +22,44 @@ def aws_credentials(monkeypatch):
     monkeypatch.setenv('AWS_DEFAULT_REGION', 'us-east-1')
 
 
-@pytest.fixture
-def dynamodb_table(aws_credentials):
-    """Создает мок DynamoDB таблицу для тестов"""
+@pytest.fixture(scope='function')
+def mock_dynamodb(aws_credentials):
+    """Активирует mock_aws для каждого теста"""
     with mock_aws():
-        dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-        table = dynamodb.create_table(
-            TableName='auth-test',
-            KeySchema=[
-                {'AttributeName': 'PK', 'KeyType': 'HASH'},
-                {'AttributeName': 'SK', 'KeyType': 'RANGE'}
-            ],
-            AttributeDefinitions=[
-                {'AttributeName': 'PK', 'AttributeType': 'S'},
-                {'AttributeName': 'SK', 'AttributeType': 'S'}
-            ],
-            BillingMode='PAY_PER_REQUEST'
-        )
+        yield
 
-        yield table
+
+@pytest.fixture
+def dynamodb_table(mock_dynamodb):
+    """Создает мок DynamoDB таблицу для тестов"""
+    # Создаем таблицу внутри активного mock_aws context
+    dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+    table = dynamodb.create_table(
+        TableName='auth-test',
+        KeySchema=[
+            {'AttributeName': 'PK', 'KeyType': 'HASH'},
+            {'AttributeName': 'SK', 'KeyType': 'RANGE'}
+        ],
+        AttributeDefinitions=[
+            {'AttributeName': 'PK', 'AttributeType': 'S'},
+            {'AttributeName': 'SK', 'AttributeType': 'S'}
+        ],
+        BillingMode='PAY_PER_REQUEST'
+    )
+
+    yield table
 
 
 @pytest.fixture
 def storage(dynamodb_table):
     """Создает DynamoDBStorage"""
-    return DynamoDBStorage(table_name='auth-test')
+    return DynamoDBStorage(table_name='auth-test', region='us-east-1')
 
 
 @pytest.fixture
 def session_storage(dynamodb_table):
     """Создает SessionStorage"""
-    return SessionStorage(table_name='auth-test')
+    return SessionStorage(table_name='auth-test', region='us-east-1')
 
 
 @pytest.fixture
