@@ -1024,7 +1024,9 @@ def create_interface():
 
         def handle_register(username, password):
             """Обработчик регистрации"""
-            return register_user(username, password)
+            result = register_user(username, password)
+            # Новый пользователь не имеет Pushover key - скрываем поле
+            return result, gr.update(visible=False)
 
         # Привязка событий
         login_result = login_btn.click(
@@ -1105,7 +1107,7 @@ def create_interface():
         register_btn.click(
             fn=handle_register,
             inputs=[register_username, register_password],
-            outputs=register_output
+            outputs=[register_output, settings_current_pushover]
         )
 
         # Auto-load: триггерим загрузку токена при загрузке страницы
