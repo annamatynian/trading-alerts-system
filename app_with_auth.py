@@ -705,13 +705,13 @@ def create_interface():
                 gr.Markdown("### Delete Trading Signal")
 
                 with gr.Row():
-                    load_signals_btn = gr.Button("🔄 Load My Signals", variant="secondary")
+                    load_signals_btn = gr.Button("🔄 Update My Signals", variant="secondary")
 
                 signal_dropdown = gr.Dropdown(
                     label="Select Signal to Delete",
                     choices=[],
                     interactive=True,
-                    info="Click 'Load My Signals' to see your signals"
+                    info="Auto-loaded on login. Click 'Update' to refresh."
                 )
 
                 delete_btn = gr.Button("Delete Signal", variant="stop")
