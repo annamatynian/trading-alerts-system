@@ -3,6 +3,19 @@
 secret-*.json
 .env
 
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
 # AWS credentials - NEVER commit these!
 *accessKeys*.csv
 *credentials*.csv
