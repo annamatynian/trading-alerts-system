@@ -25,31 +25,47 @@ def aws_credentials(monkeypatch):
 
 
 @pytest.fixture
-def dynamodb_table(aws_credentials):
-    """Создает мок DynamoDB таблицу для тестов"""
+def mock_dynamodb():
+    """Создает mock AWS для всех DynamoDB операций"""
     with mock_aws():
-        # Создаем таблицу
-        dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-        table = dynamodb.create_table(
-            TableName='trading-signals',
-            KeySchema=[
-                {'AttributeName': 'PK', 'KeyType': 'HASH'},
-                {'AttributeName': 'SK', 'KeyType': 'RANGE'}
-            ],
-            AttributeDefinitions=[
-                {'AttributeName': 'PK', 'AttributeType': 'S'},
-                {'AttributeName': 'SK', 'AttributeType': 'S'}
-            ],
-            BillingMode='PAY_PER_REQUEST'
-        )
-        
-        yield table
+        yield
+
+
+@pytest.fixture
+def dynamodb_table(aws_credentials, mock_dynamodb):
+    """Создает мок DynamoDB таблицу для тестов"""
+    # Создаем таблицу внутри mock_aws context
+    dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+    table = dynamodb.create_table(
+        TableName='trading-signals',
+        KeySchema=[
+            {'AttributeName': 'PK', 'KeyType': 'HASH'},
+            {'AttributeName': 'SK', 'KeyType': 'RANGE'}
+        ],
+        AttributeDefinitions=[
+            {'AttributeName': 'PK', 'AttributeType': 'S'},
+            {'AttributeName': 'SK', 'AttributeType': 'S'},
+            {'AttributeName': 'entity_type', 'AttributeType': 'S'}
+        ],
+        GlobalSecondaryIndexes=[
+            {
+                'IndexName': 'entity_type-index',
+                'KeySchema': [
+                    {'AttributeName': 'entity_type', 'KeyType': 'HASH'}
+                ],
+                'Projection': {'ProjectionType': 'ALL'}
+            }
+        ],
+        BillingMode='PAY_PER_REQUEST'
+    )
+
+    return table
 
 
 @pytest.fixture
 def storage(dynamodb_table):
     """Создает DynamoDBStorage с мок-таблицей"""
-    return DynamoDBStorage(table_name='trading-signals')
+    return DynamoDBStorage(table_name='trading-signals', region='us-east-1')
 
 
 @pytest.fixture
