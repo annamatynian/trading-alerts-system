@@ -305,6 +305,34 @@ class AuthService:
         user = self.users.get(username)
         return user.pushover_key if user else None
 
+    async def delete_user(self, username: str) -> bool:
+        """Удаление пользователя и всех его данных"""
+        try:
+            user = self.users.get(username)
+            if not user:
+                logger.error(f"❌ User {username} not found")
+                return False
+
+            # Удаляем из DynamoDB
+            if self.user_storage:
+                await asyncio.to_thread(
+                    self.user_storage.table.delete_item,
+                    Key={
+                        'PK': f'USER#{username}',
+                        'SK': f'USER#{username}'
+                    }
+                )
+
+            # Удаляем из памяти
+            del self.users[username]
+
+            logger.info(f"✅ User deleted: {username}")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Error deleting user {username}: {e}")
+            return False
+
     def list_users(self) -> List[User]:
         """Список всех пользователей"""
         return list(self.users.values())

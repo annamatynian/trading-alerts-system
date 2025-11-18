@@ -223,7 +223,35 @@ class DynamoDBStorage(StorageBase):
         except ClientError as e:
             logger.error(f"Failed to delete signal {signal_id}: {e}")
             return False
-    
+
+    async def delete_all_user_signals(self, user_id: str) -> int:
+        """
+        Удаляет все сигналы пользователя (TRUE ASYNC)
+
+        Args:
+            user_id: ID пользователя
+
+        Returns:
+            Количество удалённых сигналов
+        """
+        try:
+            # Получаем все сигналы пользователя
+            signals = await self.load_signals()
+            user_signals = [s for s in signals if s.user_id == user_id]
+
+            deleted_count = 0
+            for signal in user_signals:
+                success = await self.delete_signal(signal.id)
+                if success:
+                    deleted_count += 1
+
+            logger.info(f"✅ Deleted {deleted_count} signals for user: {user_id}")
+            return deleted_count
+
+        except Exception as e:
+            logger.error(f"❌ Error deleting signals for user {user_id}: {e}")
+            return 0
+
     async def update_signal(self, signal: SignalTarget) -> bool:
         """
         Обновляет существующий сигнал

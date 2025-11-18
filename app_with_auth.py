@@ -473,6 +473,48 @@ def get_user_settings(username: str) -> Tuple[str, str]:
         return username or "", ""
 
 
+async def delete_user_account_async(username: str, confirm: bool) -> Tuple[str, bool, bool, bool, str, bool]:
+    """Удаление аккаунта пользователя (async)"""
+    try:
+        if not auth_service or not storage:
+            return "❌ Services not initialized", gr.update(), gr.update(), gr.update(), "", False
+
+        if not username:
+            return "❌ Please login first", gr.update(), gr.update(), gr.update(), "", False
+
+        if not confirm:
+            return "❌ Please confirm by checking the checkbox", gr.update(), gr.update(), gr.update(), username, True
+
+        # 1. Удаляем все сигналы пользователя
+        deleted_signals = await storage.delete_all_user_signals(username)
+        logger.info(f"Deleted {deleted_signals} signals for user: {username}")
+
+        # 2. Удаляем аккаунт
+        success = await auth_service.delete_user(username)
+
+        if success:
+            # Logout - показываем auth форму, скрываем main app
+            return (
+                f"✅ Account deleted successfully. Deleted {deleted_signals} signals.",
+                gr.update(visible=True),   # auth_row - показать
+                gr.update(visible=False),  # user_info_row - скрыть
+                gr.update(visible=False),  # main_app - скрыть
+                "",                        # current_user - очистить
+                False                      # is_authenticated - false
+            )
+        else:
+            return "❌ Failed to delete account", gr.update(), gr.update(), gr.update(), username, True
+
+    except Exception as e:
+        logger.error(f"Error deleting account: {e}")
+        return f"❌ Error: {str(e)}", gr.update(), gr.update(), gr.update(), username, True
+
+
+def delete_user_account(username: str, confirm: bool):
+    """Wrapper для удаления аккаунта"""
+    return asyncio.run(delete_user_account_async(username, confirm))
+
+
 async def check_price_async(exchange: str, symbol: str) -> str:
     """Проверка текущей цены"""
     try:
@@ -865,10 +907,40 @@ def create_interface():
                         save_pushover_btn = gr.Button("💾 Save Pushover Key", variant="primary")
                         settings_output = gr.Textbox(label="Result", lines=2)
 
+                gr.Markdown("---")
+                gr.Markdown("### ⚠️ Danger Zone")
+
+                with gr.Row():
+                    with gr.Column():
+                        gr.Markdown("""
+                        **Delete Account**
+
+                        ⚠️ Warning: This action will permanently delete:
+                        - Your account
+                        - All your signals
+                        - All your settings
+
+                        This action **cannot be undone**.
+                        """)
+
+                        delete_account_confirm = gr.Checkbox(
+                            label="I understand this action cannot be undone",
+                            value=False
+                        )
+
+                        delete_account_btn = gr.Button("🗑️ Delete My Account", variant="stop")
+                        delete_account_output = gr.Textbox(label="Result", lines=2)
+
                 save_pushover_btn.click(
                     fn=lambda user, key: update_pushover_key(user, key),
                     inputs=[current_user, settings_pushover_key],
                     outputs=settings_output
+                )
+
+                delete_account_btn.click(
+                    fn=lambda user, confirm: delete_user_account(user, confirm),
+                    inputs=[current_user, delete_account_confirm],
+                    outputs=[delete_account_output, auth_row, user_info_row, main_app, current_user, is_authenticated]
                 )
 
         # ============================================================================
