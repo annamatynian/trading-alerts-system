@@ -529,6 +529,42 @@ def create_interface():
     # Инициализация при старте
     init_services()  # Initialize all services (DynamoDB, Auth, Exchanges, etc.)
 
+    # Helper function for loading signals into dropdown
+    def load_signals_to_dropdown(user_id: str):
+        """Загружает сигналы текущего пользователя в dropdown"""
+        try:
+            logger.info(f"🔍 [DROPDOWN] Loading signals for user: '{user_id}'")
+
+            signals = asyncio.run(storage.get_all_signals())
+            logger.info(f"📊 [DROPDOWN] Total signals in DB: {len(signals)}")
+
+            # Фильтруем только сигналы текущего пользователя
+            if user_id and user_id.strip():
+                before_filter = len(signals)
+                signals = [s for s in signals if s.user_id and s.user_id.strip() == user_id.strip()]
+                logger.info(f"✅ [DROPDOWN] Filtered from {before_filter} to {len(signals)} signals for user '{user_id}'")
+            else:
+                logger.warning(f"⚠️ [DROPDOWN] user_id is empty!")
+
+            if not signals:
+                logger.warning(f"⚠️ [DROPDOWN] No signals found for user: '{user_id}'")
+                return gr.update(choices=[], value=None), {}
+
+            # Формируем список и mapping
+            choices = []
+            mapping = {}
+            for signal in signals:
+                label = f"{signal.name} ({signal.symbol}, {signal.condition.value}, ${signal.target_price:.2f})"
+                choices.append(label)
+                mapping[label] = signal.id
+
+            logger.info(f"✅ [DROPDOWN] Successfully loaded {len(choices)} signals into dropdown")
+            return gr.update(choices=choices, value=None), mapping
+
+        except Exception as e:
+            logger.error(f"❌ [DROPDOWN] Error loading signals: {e}", exc_info=True)
+            return gr.update(choices=[], value=None), {}
+
     with gr.Blocks(title="Trading Signal System with Auth", theme=gr.themes.Soft()) as app:
 
         gr.Markdown("""
@@ -542,6 +578,7 @@ def create_interface():
         current_user = gr.State("")  # Текущий залогиненный пользователь
         is_authenticated = gr.State(False)  # Флаг аутентификации
         auth_token = gr.Textbox(value="", visible=False, elem_id="auth_token")  # JWT токен (скрытый)
+        signal_mapping = gr.State({})  # Mapping: label -> signal_id для dropdown
 
         # ============================================================================
         # AUTHENTICATION UI
@@ -670,9 +707,6 @@ def create_interface():
                 with gr.Row():
                     load_signals_btn = gr.Button("🔄 Load My Signals", variant="secondary")
 
-                # State для хранения mapping label -> id
-                signal_mapping = gr.State({})
-
                 signal_dropdown = gr.Dropdown(
                     label="Select Signal to Delete",
                     choices=[],
@@ -683,42 +717,6 @@ def create_interface():
                 delete_btn = gr.Button("Delete Signal", variant="stop")
                 delete_output = gr.Textbox(label="Result", lines=2)
                 delete_table = gr.Dataframe(label="Your Signals")
-
-                # Загрузка сигналов в dropdown
-                def load_signals_to_dropdown(user_id: str):
-                    """Загружает сигналы текущего пользователя в dropdown"""
-                    try:
-                        logger.info(f"🔍 [DROPDOWN] Loading signals for user: '{user_id}'")
-
-                        signals = asyncio.run(storage.get_all_signals())
-                        logger.info(f"📊 [DROPDOWN] Total signals in DB: {len(signals)}")
-
-                        # Фильтруем только сигналы текущего пользователя
-                        if user_id and user_id.strip():
-                            before_filter = len(signals)
-                            signals = [s for s in signals if s.user_id and s.user_id.strip() == user_id.strip()]
-                            logger.info(f"✅ [DROPDOWN] Filtered from {before_filter} to {len(signals)} signals for user '{user_id}'")
-                        else:
-                            logger.warning(f"⚠️ [DROPDOWN] user_id is empty!")
-
-                        if not signals:
-                            logger.warning(f"⚠️ [DROPDOWN] No signals found for user: '{user_id}'")
-                            return gr.update(choices=[], value=None), {}
-
-                        # Формируем список и mapping
-                        choices = []
-                        mapping = {}
-                        for signal in signals:
-                            label = f"{signal.name} ({signal.symbol}, {signal.condition.value}, ${signal.target_price:.2f})"
-                            choices.append(label)
-                            mapping[label] = signal.id
-
-                        logger.info(f"✅ [DROPDOWN] Successfully loaded {len(choices)} signals into dropdown")
-                        return gr.update(choices=choices, value=None), mapping
-
-                    except Exception as e:
-                        logger.error(f"❌ [DROPDOWN] Error loading signals: {e}", exc_info=True)
-                        return gr.update(choices=[], value=None), {}
 
                 # Удаление выбранного сигнала
                 def delete_selected_signal(selected_label: str, mapping: dict, user_id: str):
@@ -733,7 +731,7 @@ def create_interface():
 
                 load_signals_btn.click(
                     fn=load_signals_to_dropdown,
-                    inputs=current_user,
+                    inputs=[current_user],
                     outputs=[signal_dropdown, signal_mapping]
                 )
 
