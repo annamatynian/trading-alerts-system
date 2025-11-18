@@ -961,7 +961,8 @@ def create_interface():
                 gr.update(visible=is_auth),  # main_app
                 f"**🟢 Logged in as:** {user}" if is_auth else "**🔴 Not logged in**",  # user_display
                 user if is_auth else "",  # signal_user_id (auto-fill)
-                get_signals_table(user if is_auth else "")  # signals_table
+                get_signals_table(user if is_auth else ""),  # signals_table
+                ""  # delete_account_output - очистить
             )
 
         def handle_logout(user):
@@ -997,7 +998,8 @@ def create_interface():
                     gr.update(visible=False),  # main_app
                     "**🔴 Not logged in**",  # user_display
                     "",  # signal_user_id
-                    get_signals_table()  # signals_table
+                    get_signals_table(),  # signals_table
+                    ""  # delete_account_output - очистить
                 )
 
             # Auto-login успешен
@@ -1011,7 +1013,8 @@ def create_interface():
                 gr.update(visible=True),  # main_app (show)
                 f"**🟢 Logged in as:** {user}",  # user_display
                 user,  # signal_user_id (auto-fill)
-                get_signals_table(user)  # signals_table
+                get_signals_table(user),  # signals_table
+                ""  # delete_account_output - очистить
             )
 
         def handle_register(username, password):
@@ -1032,7 +1035,8 @@ def create_interface():
                 main_app,
                 user_display,
                 signal_user_id,
-                signals_table
+                signals_table,
+                delete_account_output  # очистить старые сообщения
             ]
         )
 
@@ -1113,7 +1117,8 @@ def create_interface():
                 main_app,
                 user_display,
                 signal_user_id,
-                signals_table
+                signals_table,
+                delete_account_output  # очистить старые сообщения
             ],
             js="""() => {
                 const token = localStorage.getItem('jwt_token') || "";
