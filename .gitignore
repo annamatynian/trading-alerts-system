@@ -1,4 +1,16 @@
-*.pdf  
-*.zip  
-secret-*.json  
-.env  
+*.pdf
+*.zip
+secret-*.json
+.env
+
+# AWS credentials - NEVER commit these!
+*accessKeys*.csv
+*credentials*.csv
+aws_credentials*.json
+*.pem
+*.key
+
+# Other secrets
+*secret*.txt
+*password*.txt
+config/credentials*
