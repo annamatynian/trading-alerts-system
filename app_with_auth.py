@@ -422,29 +422,34 @@ def delete_signal(signal_id: str, user_id: str = ""):
     return asyncio.run(delete_signal_async(signal_id, user_id))
 
 
-async def update_pushover_key_async(username: str, pushover_key: str) -> str:
+async def update_pushover_key_async(username: str, pushover_key: str) -> Tuple[str, object]:
     """Обновление Pushover ключа пользователя (async)"""
     try:
         if not auth_service:
-            return "❌ Auth service not initialized"
+            return "❌ Auth service not initialized", gr.update()
 
         if not username:
-            return "❌ Please login first"
+            return "❌ Please login first", gr.update()
 
         if not pushover_key or not pushover_key.strip():
-            return "❌ Please enter a valid Pushover User Key"
+            return "❌ Please enter a valid Pushover User Key", gr.update()
 
         # Обновляем pushover key
         success = await auth_service.update_pushover_key(username, pushover_key.strip())
 
         if success:
-            return f"✅ Pushover key updated successfully for user: {username}"
+            # Маскируем ключ для отображения
+            masked_key = pushover_key[:4] + "..." + pushover_key[-4:] if len(pushover_key) > 8 else "***"
+            return (
+                f"✅ Pushover key updated successfully for user: {username}",
+                gr.update(value=masked_key, visible=True)
+            )
         else:
-            return "❌ Failed to update Pushover key"
+            return "❌ Failed to update Pushover key", gr.update()
 
     except Exception as e:
         logger.error(f"Error updating Pushover key: {e}")
-        return f"❌ Error: {str(e)}"
+        return f"❌ Error: {str(e)}", gr.update()
 
 
 def update_pushover_key(username: str, pushover_key: str):
@@ -452,25 +457,24 @@ def update_pushover_key(username: str, pushover_key: str):
     return asyncio.run(update_pushover_key_async(username, pushover_key))
 
 
-def get_user_settings(username: str) -> Tuple[str, str]:
+def get_user_settings(username: str):
     """Получение настроек пользователя"""
     try:
         if not auth_service or not username:
-            return username or "", ""
+            return username or "", gr.update(visible=False)
 
         pushover_key = auth_service.get_pushover_key(username)
 
-        # Маскируем pushover key для отображения
+        # Показываем pushover key только если он установлен
         if pushover_key:
             masked_key = pushover_key[:4] + "..." + pushover_key[-4:] if len(pushover_key) > 8 else "***"
+            return username, gr.update(value=masked_key, visible=True)
         else:
-            masked_key = "Not set"
-
-        return username, masked_key
+            return username, gr.update(visible=False)
 
     except Exception as e:
         logger.error(f"Error getting user settings: {e}")
-        return username or "", ""
+        return username or "", gr.update(visible=False)
 
 
 async def delete_user_account_async(username: str, confirm: bool) -> Tuple[str, bool, bool, bool, str, bool]:
@@ -901,7 +905,8 @@ def create_interface():
                             label="Current Pushover Key",
                             value="",
                             interactive=False,
-                            info="Your current Pushover key (masked)"
+                            info="Your current Pushover key (masked)",
+                            visible=False  # Скрыто по умолчанию
                         )
 
                         save_pushover_btn = gr.Button("💾 Save Pushover Key", variant="primary")
@@ -934,7 +939,7 @@ def create_interface():
                 save_pushover_btn.click(
                     fn=lambda user, key: update_pushover_key(user, key),
                     inputs=[current_user, settings_pushover_key],
-                    outputs=settings_output
+                    outputs=[settings_output, settings_current_pushover]
                 )
 
                 delete_account_btn.click(
