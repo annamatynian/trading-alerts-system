@@ -504,7 +504,7 @@ def create_interface():
     """Создание Gradio интерфейса с JWT аутентификацией"""
 
     # Инициализация при старте
-    init_status = init_services()
+    init_services()  # Initialize all services (DynamoDB, Auth, Exchanges, etc.)
 
     with gr.Blocks(title="Trading Signal System with Auth", theme=gr.themes.Soft()) as app:
 
@@ -514,10 +514,6 @@ def create_interface():
 
         Secure access to trading signals with user authentication
         """)
-
-        # Статус инициализации
-        with gr.Accordion("System Status", open=False):
-            gr.Markdown(f"```\n{init_status}\n```")
 
         # State для аутентификации
         current_user = gr.State("")  # Текущий залогиненный пользователь
