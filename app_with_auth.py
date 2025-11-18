@@ -524,28 +524,6 @@ def create_interface():
         is_authenticated = gr.State(False)  # Флаг аутентификации
         auth_token = gr.Textbox(value="", visible=False, elem_id="auth_token")  # JWT токен (скрытый)
 
-        # JavaScript для автоматической загрузки токена при старте страницы
-        gr.HTML("""
-        <script>
-        // Автоматически триггерим загрузку токена при загрузке страницы
-        window.addEventListener('load', function() {
-            setTimeout(function() {
-                const autoLoadBtn = document.getElementById('auto_load_btn');
-                if (autoLoadBtn) {
-                    const btn = autoLoadBtn.querySelector('button');
-                    if (btn) {
-                        console.log('🔄 Auto-triggering token load from localStorage...');
-                        btn.click();
-                    }
-                }
-            }, 500);  // Даем Gradio время на инициализацию
-        });
-        </script>
-        """)
-
-        # Кнопка для загрузки токена при старте страницы (невидимая)
-        auto_load_btn = gr.Button("Auto Load", visible=False, elem_id="auto_load_btn")
-
         # ============================================================================
         # AUTHENTICATION UI
         # ============================================================================
@@ -877,8 +855,14 @@ def create_interface():
             }"""
         )
 
-        # Auto-login при загрузке страницы - загружаем токен из localStorage
-        auto_load_btn.click(
+        register_btn.click(
+            fn=handle_register,
+            inputs=[register_username, register_password],
+            outputs=register_output
+        )
+
+        # Auto-load: триггерим загрузку токена при загрузке страницы
+        app.load(
             fn=handle_auto_login,
             inputs=[auth_token],
             outputs=[
@@ -895,15 +879,9 @@ def create_interface():
             ],
             js="""() => {
                 const token = localStorage.getItem('jwt_token') || "";
-                console.log('📥 Token loaded from localStorage:', token ? 'exists' : 'none');
+                console.log('📥 [app.load] Token loaded from localStorage:', token ? 'exists (length: ' + token.length + ')' : 'none');
                 return token;
             }"""
-        )
-
-        register_btn.click(
-            fn=handle_register,
-            inputs=[register_username, register_password],
-            outputs=register_output
         )
 
     return app
