@@ -235,32 +235,33 @@ class DynamoDBStorage(StorageBase):
     async def get_user_data(self, user_id: str) -> Dict[str, Any]:
         """
         Получает данные пользователя по ID (TRUE ASYNC)
-        
+
         Args:
-            user_id: ID пользователя
-            
+            user_id: ID пользователя (username for auth service)
+
         Returns:
             Словарь с данными пользователя
         """
         try:
             # ✅ Настоящий async
+            # Auth service uses PK=USER#{username}, SK=USER#{username}
             response = await asyncio.to_thread(
                 self.table.get_item,
                 Key={
-                    'PK': f"user#{user_id}",
-                    'SK': 'metadata'
+                    'PK': f"USER#{user_id}",
+                    'SK': f"USER#{user_id}"
                 }
             )
-            
+
             item = response.get('Item', {})
             if not item:
                 logger.debug(f"User {user_id} not found")
                 return {}
-            
+
             # Убираем служебные поля
-            user_data = {k: v for k, v in item.items() if k not in ['PK', 'SK', 'entity_type']}
+            user_data = {k: v for k, v in item.items() if k not in ['PK', 'SK', 'Type', 'entity_type']}
             return user_data
-            
+
         except ClientError as e:
             logger.error(f"Failed to get user data for {user_id}: {e}")
             return {}

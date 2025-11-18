@@ -5,6 +5,7 @@ import os
 import logging
 import hashlib
 import secrets
+import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 import jwt
@@ -275,11 +276,18 @@ class AuthService:
                 logger.error(f"❌ User {username} not found")
                 return False
 
-            # Обновляем pushover_key
+            # Обновляем pushover_key в памяти
             user.pushover_key = pushover_key
 
             # Сохраняем в DynamoDB
-            await self._save_user_to_dynamodb(user)
+            if self.user_storage:
+                item = {
+                    'PK': f'USER#{username}',
+                    'SK': f'USER#{username}',
+                    'Type': 'User',
+                    **user.to_dict()
+                }
+                await asyncio.to_thread(self.user_storage.table.put_item, Item=item)
 
             logger.info(f"✅ Pushover key updated for user: {username}")
             return True
