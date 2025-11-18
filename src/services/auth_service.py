@@ -5,6 +5,7 @@ import os
 import logging
 import hashlib
 import secrets
+import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 import jwt
@@ -29,13 +30,15 @@ class User:
         password_hash: str,
         created_at: Optional[datetime] = None,
         last_login: Optional[datetime] = None,
-        is_active: bool = True
+        is_active: bool = True,
+        pushover_key: Optional[str] = None
     ):
         self.username = username
         self.password_hash = password_hash
         self.created_at = created_at or datetime.utcnow()
         self.last_login = last_login
         self.is_active = is_active
+        self.pushover_key = pushover_key
 
     def to_dict(self) -> Dict[str, Any]:
         """Конвертация в словарь для DynamoDB"""
@@ -44,7 +47,8 @@ class User:
             'password_hash': self.password_hash,
             'created_at': self.created_at.isoformat(),
             'last_login': self.last_login.isoformat() if self.last_login else '',
-            'is_active': self.is_active
+            'is_active': self.is_active,
+            'pushover_key': self.pushover_key or ''
         }
 
     @classmethod
@@ -55,7 +59,8 @@ class User:
             password_hash=data['password_hash'],
             created_at=datetime.fromisoformat(data['created_at']) if data.get('created_at') else datetime.utcnow(),
             last_login=datetime.fromisoformat(data['last_login']) if data.get('last_login') else None,
-            is_active=data.get('is_active', True)
+            is_active=data.get('is_active', True),
+            pushover_key=data.get('pushover_key')
         )
 
 
@@ -263,9 +268,70 @@ class AuthService:
             logger.error(f"❌ Logout error: {e}")
             return False
 
+    async def update_pushover_key(self, username: str, pushover_key: str) -> bool:
+        """Обновление Pushover ключа пользователя"""
+        try:
+            user = self.users.get(username)
+            if not user:
+                logger.error(f"❌ User {username} not found")
+                return False
+
+            # Обновляем pushover_key в памяти
+            user.pushover_key = pushover_key
+
+            # Сохраняем в DynamoDB
+            if self.user_storage:
+                item = {
+                    'PK': f'USER#{username}',
+                    'SK': f'USER#{username}',
+                    'Type': 'User',
+                    **user.to_dict()
+                }
+                await asyncio.to_thread(self.user_storage.table.put_item, Item=item)
+
+            logger.info(f"✅ Pushover key updated for user: {username}")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Error updating pushover key for {username}: {e}")
+            return False
+
     def get_user(self, username: str) -> Optional[User]:
         """Получение пользователя по username"""
         return self.users.get(username)
+
+    def get_pushover_key(self, username: str) -> Optional[str]:
+        """Получение Pushover ключа пользователя"""
+        user = self.users.get(username)
+        return user.pushover_key if user else None
+
+    async def delete_user(self, username: str) -> bool:
+        """Удаление пользователя и всех его данных"""
+        try:
+            user = self.users.get(username)
+            if not user:
+                logger.error(f"❌ User {username} not found")
+                return False
+
+            # Удаляем из DynamoDB
+            if self.user_storage:
+                await asyncio.to_thread(
+                    self.user_storage.table.delete_item,
+                    Key={
+                        'PK': f'USER#{username}',
+                        'SK': f'USER#{username}'
+                    }
+                )
+
+            # Удаляем из памяти
+            del self.users[username]
+
+            logger.info(f"✅ User deleted: {username}")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Error deleting user {username}: {e}")
+            return False
 
     def list_users(self) -> List[User]:
         """Список всех пользователей"""

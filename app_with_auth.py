@@ -422,6 +422,99 @@ def delete_signal(signal_id: str, user_id: str = ""):
     return asyncio.run(delete_signal_async(signal_id, user_id))
 
 
+async def update_pushover_key_async(username: str, pushover_key: str) -> str:
+    """Обновление Pushover ключа пользователя (async)"""
+    try:
+        if not auth_service:
+            return "❌ Auth service not initialized"
+
+        if not username:
+            return "❌ Please login first"
+
+        if not pushover_key or not pushover_key.strip():
+            return "❌ Please enter a valid Pushover User Key"
+
+        # Обновляем pushover key
+        success = await auth_service.update_pushover_key(username, pushover_key.strip())
+
+        if success:
+            return f"✅ Pushover key updated successfully for user: {username}"
+        else:
+            return "❌ Failed to update Pushover key"
+
+    except Exception as e:
+        logger.error(f"Error updating Pushover key: {e}")
+        return f"❌ Error: {str(e)}"
+
+
+def update_pushover_key(username: str, pushover_key: str):
+    """Wrapper для обновления Pushover ключа"""
+    return asyncio.run(update_pushover_key_async(username, pushover_key))
+
+
+def get_user_settings(username: str) -> Tuple[str, str]:
+    """Получение настроек пользователя"""
+    try:
+        if not auth_service or not username:
+            return username or "", ""
+
+        pushover_key = auth_service.get_pushover_key(username)
+
+        # Маскируем pushover key для отображения
+        if pushover_key:
+            masked_key = pushover_key[:4] + "..." + pushover_key[-4:] if len(pushover_key) > 8 else "***"
+        else:
+            masked_key = "Not set"
+
+        return username, masked_key
+
+    except Exception as e:
+        logger.error(f"Error getting user settings: {e}")
+        return username or "", ""
+
+
+async def delete_user_account_async(username: str, confirm: bool) -> Tuple[str, bool, bool, bool, str, bool]:
+    """Удаление аккаунта пользователя (async)"""
+    try:
+        if not auth_service or not storage:
+            return "❌ Services not initialized", gr.update(), gr.update(), gr.update(), "", False
+
+        if not username:
+            return "❌ Please login first", gr.update(), gr.update(), gr.update(), "", False
+
+        if not confirm:
+            return "❌ Please confirm by checking the checkbox", gr.update(), gr.update(), gr.update(), username, True
+
+        # 1. Удаляем все сигналы пользователя
+        deleted_signals = await storage.delete_all_user_signals(username)
+        logger.info(f"Deleted {deleted_signals} signals for user: {username}")
+
+        # 2. Удаляем аккаунт
+        success = await auth_service.delete_user(username)
+
+        if success:
+            # Logout - показываем auth форму, скрываем main app
+            return (
+                f"✅ Account deleted successfully. Deleted {deleted_signals} signals.",
+                gr.update(visible=True),   # auth_row - показать
+                gr.update(visible=False),  # user_info_row - скрыть
+                gr.update(visible=False),  # main_app - скрыть
+                "",                        # current_user - очистить
+                False                      # is_authenticated - false
+            )
+        else:
+            return "❌ Failed to delete account", gr.update(), gr.update(), gr.update(), username, True
+
+    except Exception as e:
+        logger.error(f"Error deleting account: {e}")
+        return f"❌ Error: {str(e)}", gr.update(), gr.update(), gr.update(), username, True
+
+
+def delete_user_account(username: str, confirm: bool):
+    """Wrapper для удаления аккаунта"""
+    return asyncio.run(delete_user_account_async(username, confirm))
+
+
 async def check_price_async(exchange: str, symbol: str) -> str:
     """Проверка текущей цены"""
     try:
@@ -784,6 +877,72 @@ def create_interface():
                     outputs=[sync_output, sync_table]
                 )
 
+            # TAB 6: SETTINGS
+            with gr.Tab("⚙️ Settings"):
+                gr.Markdown("### User Settings")
+
+                with gr.Row():
+                    with gr.Column():
+                        settings_username_display = gr.Textbox(
+                            label="Username",
+                            value="",
+                            interactive=False,
+                            info="Your username (read-only)"
+                        )
+
+                        settings_pushover_key = gr.Textbox(
+                            label="Pushover User Key",
+                            placeholder="Enter your Pushover User Key",
+                            info="Get your User Key from https://pushover.net",
+                            type="password"
+                        )
+
+                        settings_current_pushover = gr.Textbox(
+                            label="Current Pushover Key",
+                            value="",
+                            interactive=False,
+                            info="Your current Pushover key (masked)"
+                        )
+
+                        save_pushover_btn = gr.Button("💾 Save Pushover Key", variant="primary")
+                        settings_output = gr.Textbox(label="Result", lines=2)
+
+                gr.Markdown("---")
+                gr.Markdown("### ⚠️ Danger Zone")
+
+                with gr.Row():
+                    with gr.Column():
+                        gr.Markdown("""
+                        **Delete Account**
+
+                        ⚠️ Warning: This action will permanently delete:
+                        - Your account
+                        - All your signals
+                        - All your settings
+
+                        This action **cannot be undone**.
+                        """)
+
+                        delete_account_confirm = gr.Checkbox(
+                            label="I understand this action cannot be undone",
+                            value=False
+                        )
+
+                        delete_account_btn = gr.Button("🗑️ Delete My Account", variant="stop")
+                        delete_account_output = gr.Textbox(label="Result", lines=2)
+
+                save_pushover_btn.click(
+                    fn=lambda user, key: update_pushover_key(user, key),
+                    inputs=[current_user, settings_pushover_key],
+                    outputs=settings_output
+                )
+
+                delete_account_btn.click(
+                    fn=lambda user, confirm: delete_user_account(user, confirm),
+                    inputs=[current_user, delete_account_confirm],
+                    outputs=[delete_account_output, auth_row, user_info_row, main_app, current_user, is_authenticated]
+                )
+
         # ============================================================================
         # EVENT HANDLERS - Authentication
         # ============================================================================
@@ -896,6 +1055,10 @@ def create_interface():
             fn=load_signals_to_dropdown,
             inputs=[current_user],
             outputs=[signal_dropdown, signal_mapping]
+        ).then(
+            fn=get_user_settings,
+            inputs=[current_user],
+            outputs=[settings_username_display, settings_current_pushover]
         )
 
         logout_result = logout_btn.click(
@@ -961,6 +1124,10 @@ def create_interface():
             fn=load_signals_to_dropdown,
             inputs=[current_user],
             outputs=[signal_dropdown, signal_mapping]
+        ).then(
+            fn=get_user_settings,
+            inputs=[current_user],
+            outputs=[settings_username_display, settings_current_pushover]
         )
 
     return app

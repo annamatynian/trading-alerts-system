@@ -223,7 +223,35 @@ class DynamoDBStorage(StorageBase):
         except ClientError as e:
             logger.error(f"Failed to delete signal {signal_id}: {e}")
             return False
-    
+
+    async def delete_all_user_signals(self, user_id: str) -> int:
+        """
+        Удаляет все сигналы пользователя (TRUE ASYNC)
+
+        Args:
+            user_id: ID пользователя
+
+        Returns:
+            Количество удалённых сигналов
+        """
+        try:
+            # Получаем все сигналы пользователя
+            signals = await self.load_signals()
+            user_signals = [s for s in signals if s.user_id == user_id]
+
+            deleted_count = 0
+            for signal in user_signals:
+                success = await self.delete_signal(signal.id)
+                if success:
+                    deleted_count += 1
+
+            logger.info(f"✅ Deleted {deleted_count} signals for user: {user_id}")
+            return deleted_count
+
+        except Exception as e:
+            logger.error(f"❌ Error deleting signals for user {user_id}: {e}")
+            return 0
+
     async def update_signal(self, signal: SignalTarget) -> bool:
         """
         Обновляет существующий сигнал
@@ -235,32 +263,33 @@ class DynamoDBStorage(StorageBase):
     async def get_user_data(self, user_id: str) -> Dict[str, Any]:
         """
         Получает данные пользователя по ID (TRUE ASYNC)
-        
+
         Args:
-            user_id: ID пользователя
-            
+            user_id: ID пользователя (username for auth service)
+
         Returns:
             Словарь с данными пользователя
         """
         try:
             # ✅ Настоящий async
+            # Auth service uses PK=USER#{username}, SK=USER#{username}
             response = await asyncio.to_thread(
                 self.table.get_item,
                 Key={
-                    'PK': f"user#{user_id}",
-                    'SK': 'metadata'
+                    'PK': f"USER#{user_id}",
+                    'SK': f"USER#{user_id}"
                 }
             )
-            
+
             item = response.get('Item', {})
             if not item:
                 logger.debug(f"User {user_id} not found")
                 return {}
-            
+
             # Убираем служебные поля
-            user_data = {k: v for k, v in item.items() if k not in ['PK', 'SK', 'entity_type']}
+            user_data = {k: v for k, v in item.items() if k not in ['PK', 'SK', 'Type', 'entity_type']}
             return user_data
-            
+
         except ClientError as e:
             logger.error(f"Failed to get user data for {user_id}: {e}")
             return {}
