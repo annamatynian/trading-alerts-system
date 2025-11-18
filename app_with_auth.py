@@ -527,66 +527,43 @@ def create_interface():
         # JavaScript для работы с localStorage
         gr.HTML("""
         <script>
-        // Функция для сохранения токена в localStorage
-        function saveToken(token) {
+        // Глобальные функции для работы с токеном
+        window.saveTokenToStorage = function(token) {
             if (token && token.trim() !== "") {
                 localStorage.setItem('jwt_token', token);
-                console.log('Token saved to localStorage');
+                console.log('✅ Token saved to localStorage');
+                return token;
+            } else {
+                localStorage.removeItem('jwt_token');
+                console.log('🗑️ Token cleared from localStorage');
+                return "";
             }
-        }
+        };
 
-        // Функция для загрузки токена из localStorage
-        function loadToken() {
-            const token = localStorage.getItem('jwt_token');
-            console.log('Token loaded from localStorage:', token ? 'exists' : 'none');
-            return token || "";
-        }
+        window.loadTokenFromStorage = function() {
+            const token = localStorage.getItem('jwt_token') || "";
+            console.log('📥 Token loaded from localStorage:', token ? 'exists' : 'none');
+            return token;
+        };
 
-        // Функция для удаления токена из localStorage
-        function clearToken() {
-            localStorage.removeItem('jwt_token');
-            console.log('Token cleared from localStorage');
-        }
-
-        // При загрузке страницы - загружаем токен и триггерим auto-login
+        // Автоматически триггерим загрузку токена при загрузке страницы
         window.addEventListener('load', function() {
-            const token = loadToken();
-            if (token) {
-                console.log('Found saved token, triggering auto-login');
-                // Находим скрытое поле с токеном и обновляем его
-                const tokenField = document.getElementById('auth_token');
-                if (tokenField) {
-                    const textarea = tokenField.querySelector('textarea');
-                    if (textarea) {
-                        textarea.value = token;
-                        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            setTimeout(function() {
+                const autoLoadBtn = document.getElementById('auto_load_btn');
+                if (autoLoadBtn) {
+                    const btn = autoLoadBtn.querySelector('button');
+                    if (btn) {
+                        console.log('🔄 Auto-triggering token load...');
+                        btn.click();
                     }
                 }
-            }
-        });
-
-        // Следим за изменениями токена и сохраняем в localStorage
-        document.addEventListener('DOMContentLoaded', function() {
-            const tokenField = document.getElementById('auth_token');
-            if (tokenField) {
-                const observer = new MutationObserver(function(mutations) {
-                    mutations.forEach(function(mutation) {
-                        const textarea = tokenField.querySelector('textarea');
-                        if (textarea) {
-                            const token = textarea.value;
-                            if (token && token.trim() !== "") {
-                                saveToken(token);
-                            } else {
-                                clearToken();
-                            }
-                        }
-                    });
-                });
-                observer.observe(tokenField, { childList: true, subtree: true });
-            }
+            }, 500);  // Даем Gradio время на инициализацию
         });
         </script>
         """)
+
+        # Кнопка для загрузки токена при старте страницы (невидимая)
+        auto_load_btn = gr.Button("Auto Load", visible=False, elem_id="auto_load_btn")
 
         # ============================================================================
         # AUTHENTICATION UI
@@ -856,14 +833,14 @@ def create_interface():
             return register_user(username, password)
 
         # Привязка событий
-        login_btn.click(
+        login_result = login_btn.click(
             fn=handle_login,
             inputs=[login_username, login_password],
             outputs=[
                 login_output,
                 current_user,
                 is_authenticated,
-                auth_token,  # JWT токен (сохраняется в localStorage)
+                auth_token,  # JWT токен
                 auth_row,
                 user_info_row,
                 main_app,
@@ -873,7 +850,15 @@ def create_interface():
             ]
         )
 
-        logout_btn.click(
+        # После логина - сохраняем токен в localStorage через JavaScript
+        login_result.then(
+            fn=None,
+            inputs=[auth_token],
+            outputs=None,
+            js="(token) => window.saveTokenToStorage(token)"
+        )
+
+        logout_result = logout_btn.click(
             fn=handle_logout,
             inputs=[current_user],
             outputs=[
@@ -890,8 +875,16 @@ def create_interface():
             ]
         )
 
-        # Auto-login при загрузке токена из localStorage
-        auth_token.change(
+        # После logout - удаляем токен из localStorage
+        logout_result.then(
+            fn=None,
+            inputs=[auth_token],
+            outputs=None,
+            js="(token) => window.saveTokenToStorage(token)"  # Пустой токен = удаление
+        )
+
+        # Auto-login при загрузке страницы - загружаем токен из localStorage
+        auto_load_btn.click(
             fn=handle_auto_login,
             inputs=[auth_token],
             outputs=[
@@ -905,7 +898,8 @@ def create_interface():
                 user_display,
                 signal_user_id,
                 signals_table
-            ]
+            ],
+            js="() => window.loadTokenFromStorage()"  # Загружаем токен из localStorage
         )
 
         register_btn.click(
