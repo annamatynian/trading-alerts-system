@@ -368,20 +368,20 @@ def get_signals_table(user_id: str = "") -> pd.DataFrame:
                 'Target Price', 'Status', 'Created', 'Triggered Count'
             ])
 
-        # Формируем DataFrame
+        # Преобразуем в DataFrame
         data = []
-        for signal in signals:
+        for sig in signals:
             data.append({
-                'ID': signal.id[:8] + '...',
-                'Name': signal.name,
-                'User ID': signal.user_id or 'N/A',
-                'Exchange': signal.exchange.value if signal.exchange else 'any',
-                'Symbol': signal.symbol,
-                'Condition': signal.condition.value,
-                'Target Price': f"${signal.target_price:.2f}",
-                'Status': 'Active' if signal.active else 'Inactive',
-                'Created': signal.created_at.strftime('%Y-%m-%d %H:%M'),
-                'Triggered Count': signal.triggered_count
+                'ID': sig.id[:8] + '...',  # Короткий ID
+                'Name': sig.name,
+                'User ID': sig.user_id or 'N/A',
+                'Exchange': sig.exchange.value,
+                'Symbol': sig.symbol,
+                'Condition': sig.condition.value,
+                'Target Price': sig.target_price,
+                'Status': sig.status.value,
+                'Created': sig.created_at.strftime('%Y-%m-%d %H:%M') if sig.created_at else 'N/A',
+                'Triggered Count': sig.triggered_count or 0
             })
 
         return pd.DataFrame(data)
@@ -389,6 +389,34 @@ def get_signals_table(user_id: str = "") -> pd.DataFrame:
     except Exception as e:
         logger.error(f"❌ Error getting signals: {e}")
         return pd.DataFrame(columns=['Error'], data=[[str(e)]])
+
+
+def get_signals_choices(user_id: str = "") -> list:
+    """Получение списка сигналов для Dropdown (label, value)"""
+    try:
+        signals = asyncio.run(storage.get_all_signals())
+
+        # Фильтруем по user_id если указан
+        if user_id and user_id.strip():
+            signals = [s for s in signals if s.user_id and s.user_id.strip() == user_id.strip()]
+
+        if not signals:
+            return [("No signals available", "")]
+
+        # Формируем список (label, value) для dropdown
+        choices = []
+        for sig in signals:
+            # Label: "BTCUSDT > 50000 (Bybit)"
+            label = f"{sig.name}"
+            # Value: полный ID сигнала
+            value = sig.id
+            choices.append((label, value))
+
+        return choices
+
+    except Exception as e:
+        logger.error(f"❌ Error getting signal choices: {e}")
+        return [("Error loading signals", "")]
 
 
 async def delete_signal_async(signal_id: str) -> Tuple[str, pd.DataFrame]:
@@ -675,19 +703,30 @@ def create_interface():
             with gr.Tab("🗑️ Delete Signal"):
                 gr.Markdown("### Delete Trading Signal")
 
-                delete_id = gr.Textbox(
-                    label="Signal ID",
-                    placeholder="Enter short ID (e.g., a1b2c3d4...)",
-                    info="Get ID from View Signals tab"
-                )
+                with gr.Row():
+                    delete_dropdown = gr.Dropdown(
+                        label="Select Signal to Delete",
+                        choices=[],
+                        info="Choose a signal from your list",
+                        interactive=True
+                    )
+                    refresh_delete_btn = gr.Button("🔄 Refresh List", variant="secondary", scale=0)
 
                 delete_btn = gr.Button("Delete Signal", variant="stop")
                 delete_output = gr.Textbox(label="Result", lines=2)
                 delete_table = gr.Dataframe(label="Current Signals")
 
+                # Refresh dropdown list
+                refresh_delete_btn.click(
+                    fn=get_signals_choices,
+                    inputs=[current_user],
+                    outputs=delete_dropdown
+                )
+
+                # Delete signal
                 delete_btn.click(
                     fn=delete_signal,
-                    inputs=delete_id,
+                    inputs=delete_dropdown,
                     outputs=[delete_output, delete_table]
                 )
 
@@ -752,7 +791,8 @@ def create_interface():
                 gr.update(visible=is_auth),  # main_app
                 f"**🟢 Logged in as:** {user}" if is_auth else "**🔴 Not logged in**",  # user_display
                 user if is_auth else "",  # signal_user_id (auto-fill)
-                get_signals_table(user if is_auth else "")  # signals_table
+                get_signals_table(user if is_auth else ""),  # signals_table
+                gr.update(choices=get_signals_choices(user if is_auth else ""))  # delete_dropdown
             )
 
         def handle_logout(user):
@@ -769,7 +809,8 @@ def create_interface():
                 gr.update(visible=False),  # main_app
                 "**🔴 Not logged in**",  # user_display
                 "",  # signal_user_id (clear)
-                get_signals_table()  # signals_table (show all)
+                get_signals_table(),  # signals_table (show all)
+                gr.update(choices=[])  # delete_dropdown (clear)
             )
 
         def handle_auto_login(token):
@@ -788,7 +829,8 @@ def create_interface():
                     gr.update(visible=False),  # main_app
                     "**🔴 Not logged in**",  # user_display
                     "",  # signal_user_id
-                    get_signals_table()  # signals_table
+                    get_signals_table(),  # signals_table
+                    gr.update(choices=[])  # delete_dropdown (clear)
                 )
 
             # Auto-login успешен
@@ -802,7 +844,8 @@ def create_interface():
                 gr.update(visible=True),  # main_app (show)
                 f"**🟢 Logged in as:** {user}",  # user_display
                 user,  # signal_user_id (auto-fill)
-                get_signals_table(user)  # signals_table
+                get_signals_table(user),  # signals_table
+                gr.update(choices=get_signals_choices(user))  # delete_dropdown
             )
 
         def handle_register(username, password):
@@ -823,7 +866,8 @@ def create_interface():
                 main_app,
                 user_display,
                 signal_user_id,
-                signals_table
+                signals_table,
+                delete_dropdown
             ]
         )
 
@@ -857,7 +901,8 @@ def create_interface():
                 main_app,
                 user_display,
                 signal_user_id,
-                signals_table
+                signals_table,
+                delete_dropdown
             ]
         )
 
@@ -893,7 +938,8 @@ def create_interface():
                 main_app,
                 user_display,
                 signal_user_id,
-                signals_table
+                signals_table,
+                delete_dropdown
             ],
             js="""() => {
                 const token = localStorage.getItem('jwt_token') || "";
