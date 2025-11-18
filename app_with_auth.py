@@ -289,7 +289,14 @@ async def create_signal_async(
             )
 
         # Автогенерация имени сигнала: "BTCUSDT > 50000 (Bybit)"
-        condition_symbol = ">" if condition.lower() == "above" else "<"
+        if condition.lower() == "above":
+            condition_symbol = ">"
+        elif condition.lower() == "below":
+            condition_symbol = "<"
+        elif condition.lower() == "equal":
+            condition_symbol = "="
+        else:
+            condition_symbol = "?"
         auto_name = f"{symbol} {condition_symbol} {target_price} ({exchange.capitalize()})"
 
         # Создаем SignalTarget
