@@ -558,6 +558,14 @@ def create_interface():
 
                 with gr.Row():
                     with gr.Column():
+                        signal_user_id = gr.Textbox(
+                            label="User ID (Auto-filled)",
+                            placeholder="Filled automatically after login",
+                            info="Your username (auto-filled)",
+                            value="",
+                            interactive=False  # Read-only, заполняется автоматически
+                        )
+
                         signal_exchange = gr.Dropdown(
                             choices=["binance", "bybit", "coinbase"],
                             label="Exchange",
@@ -585,19 +593,11 @@ def create_interface():
                             info="Price threshold"
                         )
 
-                        signal_user_id = gr.Textbox(
-                            label="User ID (Auto-filled)",
-                            placeholder="Filled automatically after login",
-                            info="Your username (auto-filled)",
-                            value="",
-                            interactive=False  # Read-only, заполняется автоматически
+                        signal_notes = gr.Textbox(
+                            label="Notes (Optional)",
+                            placeholder="Additional information...",
+                            lines=1
                         )
-
-                signal_notes = gr.Textbox(
-                    label="Notes (Optional)",
-                    placeholder="Additional information...",
-                    lines=2
-                )
 
                 save_to_sheets_check = gr.Checkbox(
                     label="Also save to Google Sheets",
