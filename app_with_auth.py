@@ -544,8 +544,10 @@ def create_interface():
 
         # User info bar (видно только после логина)
         with gr.Row(visible=False) as user_info_row:
-            user_display = gr.Markdown("**Logged in as:** Guest")
-            logout_btn = gr.Button("Logout", size="sm", variant="secondary")
+            with gr.Column(scale=4):
+                user_display = gr.Markdown("**🟢 Logged in as:** Guest")
+            with gr.Column(scale=1):
+                logout_btn = gr.Button("Logout 🚪", size="sm", variant="secondary")
 
         # ============================================================================
         # MAIN APP (видно только после логина)
@@ -732,7 +734,7 @@ def create_interface():
                 gr.update(visible=not is_auth),  # auth_row
                 gr.update(visible=is_auth),  # user_info_row
                 gr.update(visible=is_auth),  # main_app
-                f"**Logged in as:** {user}" if is_auth else "**Logged in as:** Guest",  # user_display
+                f"**🟢 Logged in as:** {user}" if is_auth else "**🔴 Not logged in**",  # user_display
                 user if is_auth else "",  # signal_user_id (auto-fill)
                 get_signals_table(user if is_auth else "")  # signals_table
             )
@@ -749,7 +751,7 @@ def create_interface():
                 gr.update(visible=True),  # auth_row
                 gr.update(visible=False),  # user_info_row
                 gr.update(visible=False),  # main_app
-                "**Logged in as:** Guest",  # user_display
+                "**🔴 Not logged in**",  # user_display
                 "",  # signal_user_id (clear)
                 get_signals_table()  # signals_table (show all)
             )
@@ -768,7 +770,7 @@ def create_interface():
                     gr.update(visible=True),  # auth_row
                     gr.update(visible=False),  # user_info_row
                     gr.update(visible=False),  # main_app
-                    "**Logged in as:** Guest",  # user_display
+                    "**🔴 Not logged in**",  # user_display
                     "",  # signal_user_id
                     get_signals_table()  # signals_table
                 )
@@ -782,7 +784,7 @@ def create_interface():
                 gr.update(visible=False),  # auth_row (hide)
                 gr.update(visible=True),  # user_info_row (show)
                 gr.update(visible=True),  # main_app (show)
-                f"**Logged in as:** {user}",  # user_display
+                f"**🟢 Logged in as:** {user}",  # user_display
                 user,  # signal_user_id (auto-fill)
                 get_signals_table(user)  # signals_table
             )
