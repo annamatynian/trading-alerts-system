@@ -524,28 +524,9 @@ def create_interface():
         is_authenticated = gr.State(False)  # Флаг аутентификации
         auth_token = gr.Textbox(value="", visible=False, elem_id="auth_token")  # JWT токен (скрытый)
 
-        # JavaScript для работы с localStorage
+        # JavaScript для автоматической загрузки токена при старте страницы
         gr.HTML("""
         <script>
-        // Глобальные функции для работы с токеном
-        window.saveTokenToStorage = function(token) {
-            if (token && token.trim() !== "") {
-                localStorage.setItem('jwt_token', token);
-                console.log('✅ Token saved to localStorage');
-                return token;
-            } else {
-                localStorage.removeItem('jwt_token');
-                console.log('🗑️ Token cleared from localStorage');
-                return "";
-            }
-        };
-
-        window.loadTokenFromStorage = function() {
-            const token = localStorage.getItem('jwt_token') || "";
-            console.log('📥 Token loaded from localStorage:', token ? 'exists' : 'none');
-            return token;
-        };
-
         // Автоматически триггерим загрузку токена при загрузке страницы
         window.addEventListener('load', function() {
             setTimeout(function() {
@@ -553,7 +534,7 @@ def create_interface():
                 if (autoLoadBtn) {
                     const btn = autoLoadBtn.querySelector('button');
                     if (btn) {
-                        console.log('🔄 Auto-triggering token load...');
+                        console.log('🔄 Auto-triggering token load from localStorage...');
                         btn.click();
                     }
                 }
@@ -855,7 +836,16 @@ def create_interface():
             fn=None,
             inputs=[auth_token],
             outputs=None,
-            js="(token) => window.saveTokenToStorage(token)"
+            js="""(token) => {
+                if (token && token.trim() !== "") {
+                    localStorage.setItem('jwt_token', token);
+                    console.log('✅ Token saved to localStorage');
+                } else {
+                    localStorage.removeItem('jwt_token');
+                    console.log('🗑️ Token cleared from localStorage');
+                }
+                return token;
+            }"""
         )
 
         logout_result = logout_btn.click(
@@ -880,7 +870,11 @@ def create_interface():
             fn=None,
             inputs=[auth_token],
             outputs=None,
-            js="(token) => window.saveTokenToStorage(token)"  # Пустой токен = удаление
+            js="""(token) => {
+                localStorage.removeItem('jwt_token');
+                console.log('🗑️ Token cleared from localStorage (logout)');
+                return "";
+            }"""
         )
 
         # Auto-login при загрузке страницы - загружаем токен из localStorage
@@ -899,7 +893,11 @@ def create_interface():
                 signal_user_id,
                 signals_table
             ],
-            js="() => window.loadTokenFromStorage()"  # Загружаем токен из localStorage
+            js="""() => {
+                const token = localStorage.getItem('jwt_token') || "";
+                console.log('📥 Token loaded from localStorage:', token ? 'exists' : 'none');
+                return token;
+            }"""
         )
 
         register_btn.click(
