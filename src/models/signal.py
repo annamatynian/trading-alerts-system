@@ -64,12 +64,6 @@ class SignalTarget(BaseModel):
             raise ValueError('Symbol must be uppercase')
         return v
     
-    @validator('percentage_threshold')
-    def validate_percentage_threshold(cls, v, values):
-        """Validate percentage threshold is provided for percent_change condition"""
-        if values.get('condition') == SignalCondition.PERCENT_CHANGE and v is None:
-            raise ValueError('percentage_threshold required for percent_change condition')
-        return v
     
     def is_expired(self) -> bool:
         """Check if signal has reached maximum triggers"""
