@@ -621,47 +621,34 @@ def create_interface():
                     info="Sync to Google Sheets for manual editing"
                 )
 
-                # JavaScript для автоконвертации символа в uppercase и блокировки после USDT/USDC/USD
-                gr.HTML("""
-                <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    // Ждем пока Gradio создаст элементы
-                    setTimeout(function() {
-                        const symbolInput = document.querySelector('#signal_symbol input, #signal_symbol textarea');
-                        if (symbolInput) {
-                            symbolInput.addEventListener('input', function(e) {
-                                const cursorPos = this.selectionStart;
-                                const oldValue = this.value;
-                                const newValue = oldValue.toUpperCase();
-
-                                // Блокируем ввод после USDT/USDC/USD
-                                if (newValue.endsWith('USDT') || newValue.endsWith('USDC') || newValue.endsWith('USD')) {
-                                    // Если пытаются добавить символы после валидного окончания - удаляем их
-                                    const lastValid = newValue.match(/(.*?)(USDT|USDC|USD)$/);
-                                    if (lastValid && newValue.length > lastValid[0].length) {
-                                        this.value = lastValid[0];
-                                        return;
-                                    }
-                                }
-
-                                // Применяем uppercase
-                                if (this.value !== newValue) {
-                                    this.value = newValue;
-                                    this.setSelectionRange(cursorPos, cursorPos);
-
-                                    // Триггерим Gradio событие для обновления состояния
-                                    this.dispatchEvent(new Event('input', { bubbles: true }));
-                                }
-                            });
-                        }
-                    }, 1000);
-                });
-                </script>
-                """)
-
                 create_btn = gr.Button("Create Signal", variant="primary")
                 create_output = gr.Textbox(label="Result", lines=2)
                 create_table = gr.Dataframe(label="Your Signals")
+
+                # Функция для форматирования символа
+                def format_symbol(symbol: str) -> str:
+                    """Конвертирует в uppercase и обрезает после USDT/USDC/USD"""
+                    if not symbol:
+                        return ""
+
+                    symbol = symbol.strip().upper()
+
+                    # Ищем первое вхождение USDT/USDC/USD и обрезаем после него
+                    for ending in ['USDT', 'USDC', 'USD']:
+                        idx = symbol.find(ending)
+                        if idx != -1:
+                            # Нашли ending, возвращаем все до конца ending
+                            return symbol[:idx + len(ending)]
+
+                    # Если не нашли ни одного ending - просто возвращаем uppercase
+                    return symbol
+
+                # Auto-format символа при выходе из поля (blur)
+                signal_symbol.blur(
+                    fn=format_symbol,
+                    inputs=[signal_symbol],
+                    outputs=[signal_symbol]
+                )
 
                 create_btn.click(
                     fn=create_signal,
