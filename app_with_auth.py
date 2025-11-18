@@ -251,7 +251,6 @@ def logout_user(current_user: str) -> Tuple[str, str, bool, str]:
 # ============================================================================
 
 async def create_signal_async(
-    name: str,
     exchange: str,
     symbol: str,
     condition: str,
@@ -266,9 +265,13 @@ async def create_signal_async(
         if not user_id or user_id.strip() == "":
             return "❌ User ID is required! Please enter your username.", get_signals_table()
 
+        # Автогенерация имени сигнала: "BTCUSDT > 50000 (Bybit)"
+        condition_symbol = ">" if condition.lower() == "above" else "<"
+        auto_name = f"{symbol.upper()} {condition_symbol} {target_price} ({exchange.capitalize()})"
+
         # Создаем SignalTarget
         signal = SignalTarget(
-            name=name,
+            name=auto_name,
             exchange=ExchangeType(exchange.lower()),
             symbol=symbol.upper(),
             condition=SignalCondition(condition.lower()),
@@ -312,7 +315,6 @@ async def create_signal_async(
 
 
 def create_signal(
-    name: str,
     exchange: str,
     symbol: str,
     condition: str,
@@ -323,7 +325,7 @@ def create_signal(
 ):
     """Wrapper для создания сигнала (синхронный)"""
     return asyncio.run(
-        create_signal_async(name, exchange, symbol, condition, target_price,
+        create_signal_async(exchange, symbol, condition, target_price,
                           user_id or None, notes or None, save_to_sheets)
     )
 
@@ -556,12 +558,6 @@ def create_interface():
 
                 with gr.Row():
                     with gr.Column():
-                        signal_name = gr.Textbox(
-                            label="Signal Name",
-                            placeholder="My BTC Alert",
-                            info="Human-readable name for this signal"
-                        )
-
                         signal_exchange = gr.Dropdown(
                             choices=["binance", "bybit", "coinbase"],
                             label="Exchange",
@@ -616,7 +612,6 @@ def create_interface():
                 create_btn.click(
                     fn=create_signal,
                     inputs=[
-                        signal_name,
                         signal_exchange,
                         signal_symbol,
                         signal_condition,
