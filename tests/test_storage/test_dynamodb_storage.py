@@ -154,6 +154,9 @@ async def test_save_user_data(storage):
 @pytest.mark.asyncio
 async def test_get_user_data(storage):
     """Тест: получение данных пользователя"""
+    import asyncio
+    import boto3
+
     user_data = {
         'pushover_key': 'test-key-123',
         'email': 'test@example.com'
@@ -163,14 +166,24 @@ async def test_get_user_data(storage):
     save_result = await storage.save_user_data('test-user', user_data)
     assert save_result is True, "Failed to save user data"
 
-    # Загружаем
+    # Даем время для консистентности на Windows
+    await asyncio.sleep(0.1)
+
+    # Проверяем напрямую что данные есть в таблице
+    response = await asyncio.to_thread(
+        storage.table.get_item,
+        Key={'PK': 'user#test-user', 'SK': 'metadata'}
+    )
+    print(f"Direct DynamoDB response: {response}")
+
+    # Загружаем через метод storage
     loaded_data = await storage.get_user_data('test-user')
 
     # Отладка: выведем что получили
     print(f"Loaded data: {loaded_data}")
     print(f"Keys in loaded_data: {list(loaded_data.keys())}")
 
-    assert loaded_data, "loaded_data should not be empty"
+    assert loaded_data, f"loaded_data should not be empty. Direct response: {response}"
     assert 'pushover_key' in loaded_data, f"pushover_key not in loaded_data. Got: {loaded_data}"
     assert loaded_data['pushover_key'] == 'test-key-123'
     assert loaded_data['email'] == 'test@example.com'
