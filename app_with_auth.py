@@ -39,6 +39,9 @@ price_checker = None
 auth_service = None
 session_storage = None
 
+# Admin username из environment variable
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+
 
 def init_services():
     """Инициализация всех сервисов включая authentication"""
@@ -674,6 +677,7 @@ def create_interface():
         # State для аутентификации
         current_user = gr.State("")  # Текущий залогиненный пользователь
         is_authenticated = gr.State(False)  # Флаг аутентификации
+        is_admin = gr.State(False)  # Флаг админа
         auth_token = gr.Textbox(value="", visible=False, elem_id="auth_token")  # JWT токен (скрытый)
         signal_mapping = gr.State({})  # Mapping: label -> signal_id для dropdown
 
@@ -864,12 +868,12 @@ def create_interface():
                     outputs=price_output
                 )
 
-            # TAB 5: SYNC FROM SHEETS
-            with gr.Tab("🔄 Sync from Sheets"):
+            # TAB 5: SYNC FROM SHEETS (Admin only)
+            with gr.Tab("🔄 Sync from Sheets", visible=False) as sync_tab:
                 gr.Markdown("""
                 ### Sync Signals from Google Sheets to DynamoDB
 
-                This will read all signals from Google Sheets and save them to DynamoDB.
+                **⚠️ Admin only:** This will read all signals from Google Sheets and save them to DynamoDB.
                 """)
 
                 sync_btn = gr.Button("Sync from Google Sheets", variant="primary")
@@ -956,10 +960,14 @@ def create_interface():
             """Обработчик логина"""
             msg, user, is_auth, token = login_user(username, password)
 
+            # Проверяем admin статус
+            admin_status = (user == ADMIN_USERNAME) if is_auth else False
+
             return (
                 msg,  # login_output
                 user,  # current_user (State)
                 is_auth,  # is_authenticated (State)
+                admin_status,  # is_admin (State)
                 token,  # auth_token (будет сохранен в localStorage через JS)
                 gr.update(visible=not is_auth),  # auth_row
                 gr.update(visible=is_auth),  # user_info_row
@@ -967,7 +975,8 @@ def create_interface():
                 f"**🟢 Logged in as:** {user}" if is_auth else "**🔴 Not logged in**",  # user_display
                 user if is_auth else "",  # signal_user_id (auto-fill)
                 get_signals_table(user if is_auth else ""),  # signals_table
-                ""  # delete_account_output - очистить
+                "",  # delete_account_output - очистить
+                gr.update(visible=admin_status)  # sync_tab - показываем только для админа
             )
 
         def handle_logout(user):
@@ -997,6 +1006,7 @@ def create_interface():
                     "",  # login_output (no message)
                     "",  # current_user
                     False,  # is_authenticated
+                    False,  # is_admin
                     "",  # auth_token (clear)
                     gr.update(visible=True),  # auth_row
                     gr.update(visible=False),  # user_info_row
@@ -1004,14 +1014,19 @@ def create_interface():
                     "**🔴 Not logged in**",  # user_display
                     "",  # signal_user_id
                     get_signals_table(),  # signals_table
-                    ""  # delete_account_output - очистить
+                    "",  # delete_account_output - очистить
+                    gr.update(visible=False)  # sync_tab - скрываем
                 )
+
+            # Проверяем admin статус
+            admin_status = (user == ADMIN_USERNAME)
 
             # Auto-login успешен
             return (
                 msg,  # login_output
                 user,  # current_user
                 is_auth,  # is_authenticated
+                admin_status,  # is_admin
                 validated_token,  # auth_token
                 gr.update(visible=False),  # auth_row (hide)
                 gr.update(visible=True),  # user_info_row (show)
@@ -1019,7 +1034,8 @@ def create_interface():
                 f"**🟢 Logged in as:** {user}",  # user_display
                 user,  # signal_user_id (auto-fill)
                 get_signals_table(user),  # signals_table
-                ""  # delete_account_output - очистить
+                "",  # delete_account_output - очистить
+                gr.update(visible=admin_status)  # sync_tab - показываем только для админа
             )
 
         def handle_register(username, password):
@@ -1036,6 +1052,7 @@ def create_interface():
                 login_output,
                 current_user,
                 is_authenticated,
+                is_admin,  # Admin status
                 auth_token,  # JWT токен
                 auth_row,
                 user_info_row,
@@ -1043,7 +1060,8 @@ def create_interface():
                 user_display,
                 signal_user_id,
                 signals_table,
-                delete_account_output  # очистить старые сообщения
+                delete_account_output,  # очистить старые сообщения
+                sync_tab  # показывать только для админа
             ]
         )
 
@@ -1118,6 +1136,7 @@ def create_interface():
                 login_output,
                 current_user,
                 is_authenticated,
+                is_admin,  # Admin status
                 auth_token,
                 auth_row,
                 user_info_row,
@@ -1125,7 +1144,8 @@ def create_interface():
                 user_display,
                 signal_user_id,
                 signals_table,
-                delete_account_output  # очистить старые сообщения
+                delete_account_output,  # очистить старые сообщения
+                sync_tab  # показывать только для админа
             ],
             js="""() => {
                 const token = localStorage.getItem('jwt_token') || "";
