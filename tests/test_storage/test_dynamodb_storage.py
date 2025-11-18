@@ -59,6 +59,9 @@ def dynamodb_table(aws_credentials, mock_dynamodb):
         BillingMode='PAY_PER_REQUEST'
     )
 
+    # Ждем пока таблица станет активной
+    table.meta.client.get_waiter('table_exists').wait(TableName='trading-signals')
+
     return table
 
 
@@ -155,13 +158,20 @@ async def test_get_user_data(storage):
         'pushover_key': 'test-key-123',
         'email': 'test@example.com'
     }
-    
+
     # Сохраняем
-    await storage.save_user_data('test-user', user_data)
-    
+    save_result = await storage.save_user_data('test-user', user_data)
+    assert save_result is True, "Failed to save user data"
+
     # Загружаем
     loaded_data = await storage.get_user_data('test-user')
-    
+
+    # Отладка: выведем что получили
+    print(f"Loaded data: {loaded_data}")
+    print(f"Keys in loaded_data: {list(loaded_data.keys())}")
+
+    assert loaded_data, "loaded_data should not be empty"
+    assert 'pushover_key' in loaded_data, f"pushover_key not in loaded_data. Got: {loaded_data}"
     assert loaded_data['pushover_key'] == 'test-key-123'
     assert loaded_data['email'] == 'test@example.com'
 
