@@ -422,28 +422,34 @@ def delete_signal(signal_id: str, user_id: str = ""):
     return asyncio.run(delete_signal_async(signal_id, user_id))
 
 
-async def update_pushover_key_async(username: str, pushover_key: str) -> str:
+async def update_pushover_key_async(username: str, pushover_key: str) -> Tuple[str, dict]:
     """Обновление Pushover ключа пользователя (async)"""
     try:
         if not storage:
-            return "❌ Storage not initialized"
+            return "❌ Storage not initialized", gr.update()
 
         if not username:
-            return "❌ Please login first"
+            return "❌ Please login first", gr.update()
 
         if not pushover_key or not pushover_key.strip():
-            return "❌ Please enter a valid Pushover User Key"
+            return "❌ Please enter a valid Pushover User Key", gr.update()
 
         # Сохраняем pushover key в DynamoDB
         await storage.save_user_data(username, {
             "pushover_key": pushover_key.strip()
         })
 
-        return f"✅ Pushover key updated successfully for user: {username}"
+        # Маскируем ключ для отображения
+        masked_key = pushover_key[:4] + "..." + pushover_key[-4:] if len(pushover_key) > 8 else "***"
+
+        return (
+            f"✅ Pushover key updated successfully for user: {username}",
+            gr.update(value=masked_key, visible=True)  # Показываем поле с замаскированным ключом
+        )
 
     except Exception as e:
         logger.error(f"Error updating Pushover key: {e}")
-        return f"❌ Error: {str(e)}"
+        return f"❌ Error: {str(e)}", gr.update()
 
 
 def update_pushover_key(username: str, pushover_key: str):
@@ -451,11 +457,11 @@ def update_pushover_key(username: str, pushover_key: str):
     return asyncio.run(update_pushover_key_async(username, pushover_key))
 
 
-def get_user_settings(username: str) -> Tuple[str, str]:
+def get_user_settings(username: str) -> Tuple[str, str, bool]:
     """Получение настроек пользователя"""
     try:
         if not storage or not username:
-            return username or "", ""
+            return username or "", "", False
 
         # Получаем данные пользователя из DynamoDB
         user_data = asyncio.run(storage.get_user_data(username))
@@ -464,14 +470,16 @@ def get_user_settings(username: str) -> Tuple[str, str]:
         # Маскируем pushover key для отображения
         if pushover_key:
             masked_key = pushover_key[:4] + "..." + pushover_key[-4:] if len(pushover_key) > 8 else "***"
+            show_current_key = True  # Показываем поле если ключ есть
         else:
-            masked_key = "Not set"
+            masked_key = ""
+            show_current_key = False  # Скрываем поле если ключа нет
 
-        return username, masked_key
+        return username, masked_key, show_current_key
 
     except Exception as e:
         logger.error(f"Error getting user settings: {e}")
-        return username or "", ""
+        return username or "", "", False
 
 
 async def delete_user_account_async(username: str, confirm: bool) -> Tuple[str, bool, bool, bool, str, bool]:
@@ -738,10 +746,10 @@ def create_interface():
 
                     with gr.Column():
                         signal_condition = gr.Dropdown(
-                            choices=["above", "below"],
+                            choices=["above", "below", "equal", "percent_change"],
                             label="Condition",
                             value="above",
-                            info="Trigger when price goes above/below target"
+                            info="Trigger condition: above (>), below (<), equal (=), or percent_change (%)"
                         )
 
                         signal_target_price = gr.Number(
@@ -905,7 +913,8 @@ def create_interface():
                             label="Current Pushover Key",
                             value="",
                             interactive=False,
-                            info="Your current Pushover key (masked)"
+                            info="Your current Pushover key (masked)",
+                            visible=False  # Скрыто по умолчанию, показывается только если ключ уже сохранён
                         )
 
                         save_pushover_btn = gr.Button("💾 Save Pushover Key", variant="primary")
@@ -938,7 +947,7 @@ def create_interface():
                 save_pushover_btn.click(
                     fn=lambda user, key: update_pushover_key(user, key),
                     inputs=[current_user, settings_pushover_key],
-                    outputs=settings_output
+                    outputs=[settings_output, settings_current_pushover]  # Обновляем и сообщение, и поле Current Pushover Key
                 )
 
                 delete_account_btn.click(
@@ -956,7 +965,7 @@ def create_interface():
             msg, user, is_auth, token = login_user(username, password)
 
             # Получаем settings для пользователя
-            settings_user, masked_pushover = get_user_settings(user if is_auth else "")
+            settings_user, masked_pushover, show_pushover_field = get_user_settings(user if is_auth else "")
 
             return (
                 msg,  # login_output
@@ -970,7 +979,7 @@ def create_interface():
                 user if is_auth else "",  # signal_user_id (auto-fill)
                 get_signals_table(user if is_auth else ""),  # signals_table
                 settings_user,  # settings_username_display
-                masked_pushover  # settings_current_pushover
+                gr.update(value=masked_pushover, visible=show_pushover_field)  # settings_current_pushover - показываем только если ключ сохранён
             )
 
         def handle_logout(user):
@@ -989,7 +998,7 @@ def create_interface():
                 "",  # signal_user_id (clear)
                 get_signals_table(),  # signals_table (show all)
                 "",  # settings_username_display (clear)
-                ""  # settings_current_pushover (clear)
+                gr.update(value="", visible=False)  # settings_current_pushover (скрыть при logout)
             )
 
         def handle_auto_login(token):
@@ -1010,11 +1019,11 @@ def create_interface():
                     "",  # signal_user_id
                     get_signals_table(),  # signals_table
                     "",  # settings_username_display
-                    ""  # settings_current_pushover
+                    gr.update(value="", visible=False)  # settings_current_pushover - скрыть при ошибке
                 )
 
             # Auto-login успешен
-            settings_user, masked_pushover = get_user_settings(user)
+            settings_user, masked_pushover, show_pushover_field = get_user_settings(user)
 
             return (
                 msg,  # login_output
@@ -1028,7 +1037,7 @@ def create_interface():
                 user,  # signal_user_id (auto-fill)
                 get_signals_table(user),  # signals_table
                 settings_user,  # settings_username_display
-                masked_pushover  # settings_current_pushover
+                gr.update(value=masked_pushover, visible=show_pushover_field)  # settings_current_pushover - показываем только если ключ сохранён
             )
 
         def handle_register(username, password):
