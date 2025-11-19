@@ -365,7 +365,17 @@ def create_signal(
 def get_signals_table(user_id: str = "") -> pd.DataFrame:
     """Получение сигналов из DynamoDB с опциональным фильтром по user_id"""
     try:
-        signals = asyncio.run(storage.get_all_signals())
+        # Синхронный вызов к DynamoDB
+        response = storage.table.scan()
+        items = response.get("Items", [])
+        signals = []
+        for item in items:
+            if item.get("entity_type") == "signal":
+                try:
+                    signal = storage._item_to_signal(item)
+                    signals.append(signal)
+                except Exception as e:
+                    logger.error(f"Error parsing signal: {e}")
 
         # Фильтруем по user_id если указан
         if user_id and user_id.strip():
