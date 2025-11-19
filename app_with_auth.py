@@ -570,17 +570,17 @@ def check_price(exchange: str, symbol: str):
     return asyncio.run(check_price_async(exchange, symbol))
 
 
-def sync_from_sheets() -> Tuple[str, pd.DataFrame]:
+def sync_from_sheets(user_id: str = "") -> Tuple[str, pd.DataFrame]:
     """Синхронизация из Google Sheets в DynamoDB"""
     try:
         if not sheets_reader:
-            return "❌ Google Sheets not initialized", get_signals_table()
+            return "❌ Google Sheets not initialized", get_signals_table(user_id)
 
         # Читаем из Sheets
         signals_data = sheets_reader.read_signals()
 
         if not signals_data:
-            return "⚠️  No signals found in Google Sheets", get_signals_table()
+            return "⚠️  No signals found in Google Sheets", get_signals_table(user_id)
 
         # Сохраняем в DynamoDB
         saved_count = 0
@@ -626,11 +626,11 @@ def sync_from_sheets() -> Tuple[str, pd.DataFrame]:
                 logger.error(f"❌ Failed to sync signal: {e}")
                 continue
 
-        return f"✅ Synced {saved_count} signals from Google Sheets to DynamoDB", get_signals_table()
+        return f"✅ Synced {saved_count} signals from Google Sheets to DynamoDB", get_signals_table(user_id)
 
     except Exception as e:
         logger.error(f"❌ Error syncing from sheets: {e}")
-        return f"❌ Error: {e}", get_signals_table()
+        return f"❌ Error: {e}", get_signals_table(user_id)
 
 
 # ============================================================================
@@ -647,6 +647,8 @@ def create_interface():
     def load_signals_to_dropdown(user_id: str):
         """Загружает сигналы текущего пользователя в dropdown"""
         try:
+            import nest_asyncio
+            nest_asyncio.apply()
             logger.info(f"🔍 [DROPDOWN] Loading signals for user: '{user_id}'")
 
             signals = asyncio.run(storage.get_all_signals())
@@ -895,6 +897,7 @@ def create_interface():
 
                 sync_btn.click(
                     fn=sync_from_sheets,
+                    inputs=[current_user],
                     outputs=[sync_output, sync_table]
                 )
 
@@ -1178,4 +1181,5 @@ if __name__ == "__main__":
         share=False,  # Установите True для публичного доступа
         debug=True
     )
+
 
