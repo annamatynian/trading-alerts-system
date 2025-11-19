@@ -622,7 +622,7 @@ def sync_from_sheets(user_id: str = "") -> Tuple[str, pd.DataFrame]:
                     symbol=signal_dict['symbol'].upper(),
                     condition=condition,
                     target_price=float(signal_dict['target_price']),
-                    user_id=signal_dict.get('pushover_user_key'),
+                    user_id=user_id,
                     active=signal_dict.get('active', True)
                 )
 
