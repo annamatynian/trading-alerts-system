@@ -1,4 +1,4 @@
-"""
+﻿"""
 Gradio Web Interface для Trading Alert System с JWT Authentication
 Работает с DynamoDB и Google Sheets одновременно
 """
@@ -360,6 +360,8 @@ def create_signal(
     )
 
 
+    import nest_asyncio
+    nest_asyncio.apply()
 def get_signals_table(user_id: str = "") -> pd.DataFrame:
     """Получение сигналов из DynamoDB с опциональным фильтром по user_id"""
     try:
@@ -753,10 +755,10 @@ def create_interface():
 
                     with gr.Column():
                         signal_condition = gr.Dropdown(
-                            choices=["above", "below", "equal", "percent_change"],
+                            choices=["above", "below", "equal"],
                             label="Condition",
                             value="above",
-                            info="Trigger condition: above (>), below (<), equal (=), or percent_change (%)"
+                            info="Trigger condition: above (>), below (<), equal \(=\)"
                         )
 
                         signal_target_price = gr.Number(
@@ -1176,3 +1178,4 @@ if __name__ == "__main__":
         share=False,  # Установите True для публичного доступа
         debug=True
     )
+
