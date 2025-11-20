@@ -27,3 +27,8 @@ aws_credentials*.json
 *secret*.txt
 *password*.txt
 config/credentials*
+
+# Test files and temporary storage
+/tmp/*.json
+test_*.json
+*_test_signals.json
