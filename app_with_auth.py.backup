@@ -1,4 +1,4 @@
-﻿"""
+"""
 Gradio Web Interface для Trading Alert System с JWT Authentication
 Работает с DynamoDB и Google Sheets одновременно
 """
@@ -289,14 +289,7 @@ async def create_signal_async(
             )
 
         # Автогенерация имени сигнала: "BTCUSDT > 50000 (Bybit)"
-        if condition.lower() == "above":
-            condition_symbol = ">"
-        elif condition.lower() == "below":
-            condition_symbol = "<"
-        elif condition.lower() == "equal":
-            condition_symbol = "="
-        else:
-            condition_symbol = "?"
+        condition_symbol = ">" if condition.lower() == "above" else "<"
         auto_name = f"{symbol} {condition_symbol} {target_price} ({exchange.capitalize()})"
 
         # Создаем SignalTarget
@@ -360,8 +353,6 @@ def create_signal(
     )
 
 
-    import nest_asyncio
-    nest_asyncio.apply()
 def get_signals_table(user_id: str = "") -> pd.DataFrame:
     """Получение сигналов из DynamoDB с опциональным фильтром по user_id"""
     try:
@@ -570,18 +561,17 @@ def check_price(exchange: str, symbol: str):
     return asyncio.run(check_price_async(exchange, symbol))
 
 
-def sync_from_sheets(user_id: str = "") -> Tuple[str, pd.DataFrame]:
+def sync_from_sheets() -> Tuple[str, pd.DataFrame]:
     """Синхронизация из Google Sheets в DynamoDB"""
     try:
-        if user_id != "annam":
-            return "❌ Admin only.", get_signals_table(user_id)
         if not sheets_reader:
-            return "❌ Google Sheets not initialized", get_signals_table(user_id)
-            # Читаем из Sheets
+            return "❌ Google Sheets not initialized", get_signals_table()
+
+        # Читаем из Sheets
         signals_data = sheets_reader.read_signals()
 
         if not signals_data:
-            return "⚠️  No signals found in Google Sheets", get_signals_table(user_id)
+            return "⚠️  No signals found in Google Sheets", get_signals_table()
 
         # Сохраняем в DynamoDB
         saved_count = 0
@@ -627,11 +617,11 @@ def sync_from_sheets(user_id: str = "") -> Tuple[str, pd.DataFrame]:
                 logger.error(f"❌ Failed to sync signal: {e}")
                 continue
 
-        return f"✅ Synced {saved_count} signals from Google Sheets to DynamoDB", get_signals_table(user_id)
+        return f"✅ Synced {saved_count} signals from Google Sheets to DynamoDB", get_signals_table()
 
     except Exception as e:
         logger.error(f"❌ Error syncing from sheets: {e}")
-        return f"❌ Error: {e}", get_signals_table(user_id)
+        return f"❌ Error: {e}", get_signals_table()
 
 
 # ============================================================================
@@ -648,8 +638,6 @@ def create_interface():
     def load_signals_to_dropdown(user_id: str):
         """Загружает сигналы текущего пользователя в dropdown"""
         try:
-            import nest_asyncio
-            nest_asyncio.apply()
             logger.info(f"🔍 [DROPDOWN] Loading signals for user: '{user_id}'")
 
             signals = asyncio.run(storage.get_all_signals())
@@ -758,10 +746,10 @@ def create_interface():
 
                     with gr.Column():
                         signal_condition = gr.Dropdown(
-                            choices=["above", "below", "equal"],
+                            choices=["above", "below", "equal", "percent_change"],
                             label="Condition",
                             value="above",
-                            info="Trigger condition: above (>), below (<), equal \(=\)"
+                            info="Trigger condition: above (>), below (<), equal (=), or percent_change (%)"
                         )
 
                         signal_target_price = gr.Number(
@@ -898,7 +886,6 @@ def create_interface():
 
                 sync_btn.click(
                     fn=sync_from_sheets,
-                    inputs=[current_user],
                     outputs=[sync_output, sync_table]
                 )
 
@@ -1182,5 +1169,3 @@ if __name__ == "__main__":
         share=False,  # Установите True для публичного доступа
         debug=True
     )
-
-
