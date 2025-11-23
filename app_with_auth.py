@@ -1179,7 +1179,7 @@ if __name__ == "__main__":
     app.launch(
         server_name="0.0.0.0",
         server_port=7860,
-        share=False,  # Установите True для публичного доступа
+        share=True,  # Установите True для публичного доступа
         debug=True
     )
 
