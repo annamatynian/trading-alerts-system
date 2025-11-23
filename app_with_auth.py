@@ -686,7 +686,7 @@ def create_interface():
 
         gr.Markdown("""
         # 🚀 Trading Signal System
-        ### DynamoDB + Google Sheets + JWT Authentication
+        ### Cloud-based Trading Alerts
 
         Secure access to trading signals with user authentication
         """)
